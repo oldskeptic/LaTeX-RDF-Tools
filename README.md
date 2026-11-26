@@ -4,6 +4,10 @@
 
 LaTeX-RDF-Tools distributes the RDFTools and w3c-recommendation LaTeX packages. It includes their user documentation, examples, and a complete reference manual.
 
+RDFTools lets you load vocabularies and refer to their terms directly in your LaTeX prose, showing names, language-aware definitions, URIs, and class or property hierarchies. It can also render RDF fragments as numbered, captioned listings, create glossaries from terms, and generate BIBO citations from RDF data.
+
+If you write LaTeX papers about RDF / OWL datasets, this package is for you.
+
 ## License
 
 The included package source and documentation are distributed under the LaTeX Project Public License, version 1.3c (LPPL 1.3c). See `LICENSE`.
