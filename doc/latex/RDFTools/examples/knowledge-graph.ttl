@@ -1,0 +1,15 @@
+@prefix ex: <https://example.org/library/> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix schema: <https://schema.org/> .
+
+ex:book-1 a schema:Book ;
+    schema:name "The Example Atlas" ;
+    schema:author ex:author-1 ;
+    dcterms:issued "2026-08-31"^^<http://www.w3.org/2001/XMLSchema#date> .
+
+ex:author-1 a schema:Person ;
+    schema:name "A. Researcher" ;
+    schema:knows ex:author-2 .
+
+ex:author-2 a schema:Person ;
+    schema:name "B. Builder" .

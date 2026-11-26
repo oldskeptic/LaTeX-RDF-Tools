@@ -1,0 +1,1568 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{RDFTools}[2026/09/21 Unified RDF fragment and reference tools]
+% Author: Robert Warren
+
+% RDF fragment and RDF term/reference functionality.
+\RequirePackage{xcolor}
+\RequirePackage{xstring}
+\RequirePackage{fancyvrb}
+\RequirePackage{keyval}
+\RequirePackage{url}
+\RequirePackage{iftex}
+\RequirePackage{etoolbox}
+\RequirePackage{hyperref}
+
+% A small, self-contained presentation package. It does not attempt to become
+% an RDF parser; it detects the serialization and presents the source safely
+% as a structured, line-numbered listing.
+
+\definecolor{rdfframe}{HTML}{CBD5E1}
+\definecolor{rdfheading}{HTML}{0F3D56}
+\definecolor{rdfmuted}{HTML}{475569}
+
+\newcounter{rdfFragment}
+\renewcommand{\therdfFragment}{\arabic{rdfFragment}}
+\newcommand{\rdfname}{RDF Listing}
+\newcommand{\listofrdfname}{List of RDF fragments}
+
+\newread\rdffile
+\newcount\rdfscanlinecount
+\newif\ifrdfxml
+\newif\ifrdfturtle
+\newif\ifrdfnthree
+\newif\ifrdfquads
+\newif\ifrdfshowsource
+\newif\ifrdfnoprefix
+\newif\ifrdffragmentdirect
+\newif\ifrdfformatoverride
+
+\def\rdfformatname{Unknown serialization}
+\def\rdffileext{}
+\def\rdffirstline{}
+\def\rdffragmentsource{}
+\def\rdffragmenttitle{}
+\def\rdffragmentcaption{}
+\def\rdffragmentlisttitle{}
+\def\rdffragmentlabel{}
+\def\rdffragmentdirectcaption{}
+
+% Inspect a small prefix of a file when its extension is not informative.
+\def\rdfformatcheckline#1{%
+  \IfSubStr{#1}{<rdf:RDF}{\rdfxmltrue}{}%
+  \IfSubStr{#1}{xmlns:rdf}{\rdfxmltrue}{}%
+  \IfSubStr{#1}{<owl:Ontology}{\rdfxmltrue}{}%
+  \IfSubStr{#1}{<?xml}{\rdfxmltrue}{}%
+  \IfSubStr{#1}{@prefix}{\rdfturtletrue}{}%
+  \IfSubStr{#1}{@base}{\rdfturtletrue}{}%
+  \IfSubStr{#1}{PREFIX }{\rdfturtletrue}{}%
+  \IfSubStr{#1}{BASE }{\rdfturtletrue}{}%
+  \IfSubStr{#1}{@forAll}{\rdfnthreetrue}{}%
+  \IfSubStr{#1}{@forSome}{\rdfnthreetrue}{}%
+  \IfSubStr{#1}{=>}{\rdfnthreetrue}{}%
+  \IfSubStr{#1}{=>>}{\rdfnthreetrue}{}%
+  \IfSubStr{#1}{GRAPH }{\rdfquadstrue}{}%
+  \IfSubStr{#1}{\{}{\rdfquadstrue}{}%
+}
+
+\def\rdfformatscan{%
+  \ifnum\rdfscanlinecount<20
+    \ifeof\rdffile
+    \else
+      \read\rdffile to \rdffirstline
+      \advance\rdfscanlinecount by 1
+      \rdfformatcheckline{\rdffirstline}%
+      \rdfformatscan
+    \fi
+  \fi
+}
+
+\def\rdfformatbycontent#1{%
+  \rdfxmlfalse
+  \rdfturtlefalse
+  \rdfnthreefalse
+  \rdfquadsfalse
+  \openin\rdffile=#1\relax
+  \rdfscanlinecount=0
+  \rdffileext=%
+  \rdffirstline=%
+  \rdffileext=%
+  \rdfformatscan
+  \closein\rdffile
+  \ifrdfxml
+    \def\rdfformatname{RDF/XML (RDF or OWL)}%
+  \else\ifrdfquads
+    \def\rdfformatname{N-Quads}%
+  \else\ifrdfnthree
+    \def\rdfformatname{N3}%
+  \else\ifrdfturtle
+    \def\rdfformatname{Turtle}%
+  \else
+    \def\rdfformatname{Unknown serialization}%
+  \fi\fi\fi\fi
+}
+
+\def\rdfformatbyextension#1{%
+  \filename@parse{#1}%
+  \edef\rdffileext{\filename@ext}%
+  \def\rdfttl{ttl}%
+  \def\rdfrdf{rdf}%
+  \def\rdfxmlfile{xml}%
+  \def\rdfowl{owl}%
+  \def\rdfnthreefile{n3}%
+  \def\rdfnq{nq}%
+  \def\rdfnquads{nquads}%
+  \ifx\rdffileext\rdfttl
+    \def\rdfformatname{Turtle}%
+  \else\ifx\rdffileext\rdfrdf
+    \def\rdfformatname{RDF/XML (RDF or OWL)}%
+  \else\ifx\rdffileext\rdfxmlfile
+    \def\rdfformatname{RDF/XML (RDF or OWL)}%
+  \else\ifx\rdffileext\rdfowl
+    \def\rdfformatname{RDF/XML (RDF or OWL)}%
+  \else\ifx\rdffileext\rdfnthreefile
+    \def\rdfformatname{N3}%
+  \else\ifx\rdffileext\rdfnq
+    \def\rdfformatname{N-Quads}%
+  \else\ifx\rdffileext\rdfnquads
+    \def\rdfformatname{N-Quads}%
+  \else
+    \rdfformatbycontent{#1}%
+  \fi\fi\fi\fi\fi\fi\fi
+}
+
+\define@key{rdffragment}{source}{\def\rdffragmentsource{#1}}
+\define@key{rdffragment}{title}{\def\rdffragmenttitle{#1}}
+\define@key{rdffragment}{label}{\def\rdffragmentlabel{#1}}
+\define@key{rdffragment}{caption}{\def\rdffragmentdirectcaption{#1}}
+\define@key{rdffragment}{format}{%
+  \def\rdfformatname{#1}%
+  \rdfformatoverridetrue
+}
+\define@key{rdffragment}{show-source}[true]{%
+  \IfEq{#1}{false}{\rdfshowsourcefalse}{\rdfshowsourcetrue}%
+}
+\define@key{rdffragment}{noprefix}[true]{%
+  \IfEq{#1}{false}{\rdfnoprefixfalse}{\rdfnoprefixtrue}%
+}
+
+\newcommand{\rdflistingheading}[1]{%
+  \par\medskip
+  \noindent
+  \setlength{\fboxsep}{7pt}%
+  \color{rdfheading}%
+  \textbf{#1}%
+  \par\smallskip
+}
+
+\newenvironment{rdflisting}[1][RDF fragment]{%
+  \rdflistingheading{#1}%
+  \VerbatimEnvironment
+  \renewcommand{\theFancyVerbLine}{%
+    \textcolor{rdfmuted}{\scriptsize\arabic{FancyVerbLine}}%
+  }%
+  \begin{Verbatim}[
+    fontsize=\small,
+    frame=single,
+    framesep=4pt,
+    rulecolor=\color{rdfframe},
+    numbers=left,
+    numbersep=8pt,
+    xleftmargin=2.2em,
+    formatcom=\color{black}
+  ]%
+}{%
+  \end{Verbatim}
+  \par\medskip
+}
+
+\newcommand{\rdffragmentinput}[1]{%
+  \renewcommand{\theFancyVerbLine}{%
+    \textcolor{rdfmuted}{\scriptsize\arabic{FancyVerbLine}}%
+  }%
+  \VerbatimInput[
+    fontsize=\small,
+    frame=single,
+    framesep=4pt,
+    rulecolor=\color{rdfframe},
+    numbers=left,
+    numbersep=8pt,
+    xleftmargin=2.2em,
+    formatcom=\rdffragment@formatcom
+  ]{#1}%
+}
+
+\def\rdffragment@formatcom{%
+  \rdffragment@filterprefixhook
+  \color{black}%
+}
+
+\ExplSyntaxOn
+\tl_new:N \l__rdf_fragment_line_tl
+\bool_new:N \l__rdf_fragment_prefix_bool
+\bool_new:N \l__rdf_fragment_turtle_prefix_bool
+\cs_new_protected:Npn \rdffragment@resetprefixfilter
+  { \bool_set_false:N \l__rdf_fragment_prefix_bool }
+\cs_new_protected:Npn \rdffragment@filterprefixline
+  {
+    % Expand the line container once, never the active verbatim characters.
+    \tl_set:Nx \l__rdf_fragment_line_tl
+      { \exp_args:No \tl_to_str:n { \FV@Line } }
+    \regex_match:nVTF { \A \s* @prefix \s } \l__rdf_fragment_line_tl
+      {
+        \bool_set_true:N \l__rdf_fragment_prefix_bool
+        \bool_set_true:N \l__rdf_fragment_turtle_prefix_bool
+      }
+      {
+        \regex_match:nVT { \A \s* [Pp][Rr][Ee][Ff][Ii][Xx] \s } \l__rdf_fragment_line_tl
+          {
+            \bool_set_true:N \l__rdf_fragment_prefix_bool
+            \bool_set_false:N \l__rdf_fragment_turtle_prefix_bool
+          }
+      }
+    \bool_if:NTF \l__rdf_fragment_prefix_bool
+      {
+        % Keep original source line numbers, but do not render declarations.
+        \global\advance\FV@CodeLineNo\@ne
+        \bool_if:NTF \l__rdf_fragment_turtle_prefix_bool
+          {
+            \regex_match:nVT { \. \s* (\x{23} .* )? \Z } \l__rdf_fragment_line_tl
+              { \bool_set_false:N \l__rdf_fragment_prefix_bool }
+          }
+          {
+            \regex_match:nVT { > } \l__rdf_fragment_line_tl
+              { \bool_set_false:N \l__rdf_fragment_prefix_bool }
+          }
+      }
+      { \rdffragment@originalpreprocessline }
+  }
+\cs_generate_variant:Nn \regex_match:nnTF { nV }
+\cs_generate_variant:Nn \regex_match:nnT { nV }
+\ExplSyntaxOff
+
+\def\rdffragment@filterprefixhook{%
+  \ifrdfnoprefix
+    \rdffragment@resetprefixfilter
+    \let\rdffragment@originalpreprocessline\FV@PreProcessLine
+    \let\FV@PreProcessLine\rdffragment@filterprefixline
+  \fi
+}
+
+\newcommand{\rdfcaptionlabel}{%
+  \rdfname~\therdfFragment
+}
+
+\def\rdffragment@caption{%
+  \@ifnextchar[{\rdffragment@caption@optional}{\rdffragment@caption@plain}%
+}
+
+\def\rdffragment@caption@optional[#1]#2{%
+  \def\rdffragmentcaption{#2}%
+  \def\rdffragmentlisttitle{#1}%
+  \@makecaption{\rdfcaptionlabel}{#2}%
+}
+
+\def\rdffragment@caption@plain#1{%
+  \def\rdffragmentcaption{#1}%
+  \def\rdffragmentlisttitle{#1}%
+  \@makecaption{\rdfcaptionlabel}{#1}%
+}
+
+\newcommand{\rdfaddtolist}{%
+  \ifx\rdffragmentlisttitle\@empty
+    \ifx\rdffragmenttitle\@empty
+      \ifrdffragmentdirect
+        \def\rdffragmentlisttitle{Direct RDF listing}%
+      \else
+        \def\rdffragmentlisttitle{Imported RDF fragment}%
+      \fi
+    \else
+      \edef\rdffragmentlisttitle{\rdffragmenttitle}%
+    \fi
+  \fi
+  \addcontentsline{rdfl}{rdfFragment}{%
+    \protect\numberline{\therdfFragment}\rdffragmentlisttitle
+  }%
+}
+
+\newcommand{\rdfheadingtitle}{%
+  \ifx\rdffragmenttitle\@empty
+    \rdfname~\therdfFragment
+  \else
+    \rdfname~\therdfFragment: \rdffragmenttitle
+  \fi
+}
+
+\newcommand{\rdffragmentsourcepath}{%
+  \edef\rdffragment@sourcepath{\noexpand\path{\rdffragmentsource}}%
+  \rdffragment@sourcepath
+}
+
+\def\rdffragment@directbegin{%
+  \rdflistingheading{%
+    \rdfheadingtitle
+    \ifrdfformatoverride
+      \space--- \rdfformatname
+    \else
+      \ifx\rdffragmenttitle\@empty
+        \ifx\rdffragmentdirectcaption\@empty
+          \space--- \rdfformatname
+        \fi
+      \fi
+    \fi
+  }%
+  \ifx\rdffragmentdirectcaption\@empty
+  \else
+    \rdffragment@caption@plain{\rdffragmentdirectcaption}%
+  \fi
+  \ifx\rdffragmentlabel\@empty
+  \else
+    \label{\rdffragmentlabel}%
+  \fi
+  \VerbatimEnvironment
+  \begin{Verbatim}[
+    fontsize=\small,
+    frame=single,
+    framesep=4pt,
+    rulecolor=\color{rdfframe},
+    numbers=left,
+    numbersep=8pt,
+    xleftmargin=2.2em,
+    formatcom=\rdffragment@formatcom
+  ]%
+}
+
+\def\rdffragment@sourcebegin{%
+  \let\rdffragment@originalcaption\caption
+  \renewcommand{\caption}{\rdffragment@caption}%
+}
+
+\newenvironment{rdfFragment}[1][]{%
+  \begingroup
+  \def\rdffragmentsource{}%
+  \def\rdffragmenttitle{}%
+  \def\rdffragmentcaption{}%
+  \def\rdffragmentlisttitle{}%
+  \def\rdffragmentlabel{}%
+  \def\rdffragmentdirectcaption{}%
+  \def\rdfformatname{Direct RDF listing}%
+  \rdfshowsourcefalse
+  \rdfnoprefixfalse
+  \rdfformatoverridefalse
+  \setkeys{rdffragment}{#1}%
+  \refstepcounter{rdfFragment}%
+  \ifx\rdffragmentsource\@empty
+    \rdffragmentdirecttrue
+    \let\rdffragment@begin\rdffragment@directbegin
+  \else
+    \rdffragmentdirectfalse
+    \let\rdffragment@begin\rdffragment@sourcebegin
+  \fi
+  \rdffragment@begin
+}{%
+  \ifrdffragmentdirect
+    \end{Verbatim}%
+    \par\medskip
+  \else
+    \IfFileExists{\rdffragmentsource}{%
+      \ifrdfformatoverride
+      \else
+        \rdfformatbyextension{\rdffragmentsource}%
+      \fi
+      \rdflistingheading{\rdfheadingtitle\space--- detected as \rdfformatname}%
+      \ifrdfshowsource
+        \noindent{\small\color{rdfmuted}\textit{Source: }\rdffragmentsourcepath}%
+        \par\smallskip
+      \fi
+      \rdffragmentinput{\rdffragmentsource}%
+      \par\medskip
+    }{%
+      \PackageError{RDFTools}{RDF/OWL file `\rdffragmentsource' not found}%
+        {Check the source option passed to the rdfFragment environment.}%
+    }%
+  \fi
+  \rdfaddtolist
+  \endgroup
+}
+
+\newcommand{\listOfRDFfragments}{%
+  \clearpage
+  \begingroup
+  \@ifundefined{chapter}{%
+    \section*{\listofrdfname}%
+    \addcontentsline{toc}{section}{\listofrdfname}%
+  }{%
+    \chapter*{\listofrdfname}%
+    \addcontentsline{toc}{chapter}{\listofrdfname}%
+  }%
+  \@starttoc{rdfl}%
+  \endgroup
+}
+
+\newcommand{\l@rdfFragment}{\@dottedtocline{1}{1.5em}{2.8em}}
+
+\newcommand{\importRDFfragment}[1]{%
+  \begin{rdfFragment}[source={#1}]%
+  \end{rdfFragment}%
+}
+
+% RDFTools delegates parsing to its TeX Live texlua helper. This keeps
+% the LaTeX layer compatible with both PDFLaTeX and XeLaTeX while supporting
+% UTF-8 literals and the common RDF serializations.
+
+\makeatletter
+
+\newif\ifRDFReference@indexTerms
+\newif\ifRDFReference@indexOpen
+\newif\ifRDFReference@indexHasEntries
+\newif\ifRDFReference@shellEscape
+\newif\ifRDFReference@streaming
+\newif\ifRDFReference@warningOnly
+\newif\ifRDFReference@directSuperOnly
+\newif\ifRDFReference@termCacheHit
+\newif\ifRDFReference@sourcesQueued
+\RDFReference@indexTermsfalse
+\RDFReference@indexOpenfalse
+\RDFReference@indexHasEntriesfalse
+\RDFReference@shellEscapefalse
+\RDFReference@streamingfalse
+\RDFReference@warningOnlyfalse
+\RDFReference@directSuperOnlyfalse
+\RDFReference@sourcesQueuedfalse
+\def\RDFReference@sources{}
+\def\RDFReference@cacheChecks{}
+\def\RDFReference@prepareSource#1{}
+\def\RDFReference@checkPreparedSource#1{%
+  \IfFileExists{rdfCache/\jobname.rdfref.#1.tex}{}{%
+    \PackageError{RDFTools}{Could not prepare RDF cache for
+      `\csname RDFReference@source@#1\endcsname'}{%
+      Verify that the source exists and uses a supported RDF serialization.}%
+  }%
+}
+
+\def\RDFReference@checkShellEscape{%
+  \RDFReference@shellEscapefalse
+  \ifcsname pdfshellescape\endcsname
+    \ifnum\pdfshellescape=1
+      \RDFReference@shellEscapetrue
+    \fi
+  \else
+    \ifcsname shellescape\endcsname
+      \ifnum\shellescape=1
+        \RDFReference@shellEscapetrue
+      \fi
+    \else
+      \ifdefined\directlua
+        \directlua{%
+          if status.shell_escape == 1 then
+            tex.sprint("\\csname RDFReference@shellEscapetrue\\endcsname")
+          end
+        }%
+      \fi
+    \fi
+  \fi
+}
+
+\def\RDFReference@records{}
+\def\RDFReference@uriRecords{}
+\def\RDFReference@termRecords{}
+\def\RDFReference@hierarchyRecords{}
+\def\RDFReference@glossaryMode{none}
+\let\RDFReference@glossaryUse\@gobbletwo
+\let\RDFReference@glossaryFull\@empty
+\long\def\RDFReference@glossaryLink#1#2#3{#3}
+\def\RDFReference@superRecords{}
+\def\RDFReference@directSuperRecords{}
+\def\RDFReference@metadataRecords{}
+\def\RDFReference@bibRecords{}
+\def\RDFReference@bibFiles{}
+\def\RDFReference@bibSeen{}
+\def\RDFReference@biblatexSeen{}
+\def\RDFReference@requestLanguage{}
+\def\RDFReference@requestRegion{}
+\def\RDFReference@requestTag{}
+\def\RDFReference@result{}
+\def\RDFReference@uriResult{}
+\def\RDFReference@metadataValue{}
+\def\RDFReference@bibResult{}
+\def\RDFReference@bestPriority{99}
+\def\RDFReference@bestRank{99}
+\def\RDFReference@bestScore{9999}
+\def\RDFReference@indexSeen{}
+\ExplSyntaxOn
+\tl_new:N \g__rdftools_sources_tl
+\cs_new_protected:Npn \RDFReference@writeSourceLine #1#2
+  {
+    \str_set:Nx \l_tmpa_str {#1}
+    \tl_clear:N \l_tmpa_tl
+    \str_map_inline:Nn \l_tmpa_str
+      { \tl_put_right:Nx \l_tmpa_tl { \int_to_hex:n {`##1} , } }
+    \str_set:Nx \l_tmpb_str {#2}
+    \tl_clear:N \l_tmpb_tl
+    \str_map_inline:Nn \l_tmpb_str
+      { \tl_put_right:Nx \l_tmpb_tl { \int_to_hex:n {`##1} , } }
+    \tl_gput_right:Nx \g__rdftools_sources_tl
+      { \l_tmpa_tl | \l_tmpb_tl ; }
+  }
+\cs_new:Npn \RDFReference@sourceHex
+  { \tl_use:N \g__rdftools_sources_tl }
+% Send index records to the helper as codepoints. This avoids shell quoting
+% problems and keeps them on disk even with Tectonic's virtual output files.
+\cs_new_protected:Npn \RDFReference@writeIndexLine #1
+  {
+    \str_set:Nx \l_tmpa_str {#1}
+    \tl_clear:N \l_tmpa_tl
+    \str_map_inline:Nn \l_tmpa_str
+      { \tl_put_right:Nx \l_tmpa_tl { \int_to_hex:n {`##1} , } }
+    \immediate\write18
+      {
+        texlua~"$(kpsewhich~--format=tex~RDFTools.lua)"~append-index~--output~"rdfCache/\jobname.rdfidx.new"~--data-hex~"\l_tmpa_tl"
+      }
+  }
+\ExplSyntaxOff
+\def\RDFReference@queueSource#1#2{%
+  \RDFReference@sourcesQueuedtrue
+  \RDFReference@writeSourceLine{#1}{#2}%
+}
+\newcount\RDFReference@superTotal
+\newcount\RDFReference@superPosition
+\newcount\RDFReference@termCacheSlot
+\newcount\RDFReference@termCacheSearchSlot
+\newcount\RDFReference@termCacheHitSlot
+\newcount\RDFReference@termCacheSize
+\newcount\RDFReference@termCacheHits
+\newcount\RDFReference@termCacheLimit
+\RDFReference@termCacheSlot=0
+\RDFReference@termCacheSize=0
+\RDFReference@termCacheHits=0
+\RDFReference@termCacheLimit=32
+
+% Retain only the most recent term results. This avoids rereading cache files
+% for common repeated references without keeping records for every ontology.
+\def\RDFReference@termCacheLookup#1#2#3#4{%
+  \RDFReference@termCacheHitfalse
+  \RDFReference@termCacheSearchSlot=1
+  \loop\ifnum\RDFReference@termCacheSearchSlot<\numexpr\RDFReference@termCacheLimit+1\relax
+    \ifcsname RDFReference@termCachePrefix@\the\RDFReference@termCacheSearchSlot\endcsname
+      \IfEq{#1}{\csname RDFReference@termCachePrefix@\the\RDFReference@termCacheSearchSlot\endcsname}{%
+        \IfEq{#2}{\csname RDFReference@termCacheTerm@\the\RDFReference@termCacheSearchSlot\endcsname}{%
+          \IfEq{#3}{\csname RDFReference@termCacheKind@\the\RDFReference@termCacheSearchSlot\endcsname}{%
+            \IfEq{#4}{\csname RDFReference@termCacheLanguage@\the\RDFReference@termCacheSearchSlot\endcsname}{%
+              \expandafter\let\expandafter\RDFReference@cacheValue
+                \csname RDFReference@termCacheValue@\the\RDFReference@termCacheSearchSlot\endcsname
+              \RDFReference@termCacheHitSlot=\RDFReference@termCacheSearchSlot
+              \RDFReference@termCacheHittrue
+              \global\advance\RDFReference@termCacheHits by 1\relax
+            }{}%
+          }{}%
+        }{}%
+      }{}%
+    \fi
+    \advance\RDFReference@termCacheSearchSlot by 1\relax
+  \repeat
+}
+
+\def\RDFReference@termCacheStore#1#2#3#4#5{%
+  \global\advance\RDFReference@termCacheSlot by 1\relax
+  \ifnum\RDFReference@termCacheSlot>\RDFReference@termCacheLimit
+    \global\RDFReference@termCacheSlot=1
+  \fi
+  \RDFReference@termCacheClearSupers
+  \ifnum\RDFReference@termCacheSize<\RDFReference@termCacheLimit
+    \global\advance\RDFReference@termCacheSize by 1\relax
+  \fi
+  \expandafter\protected@xdef
+    \csname RDFReference@termCachePrefix@\the\RDFReference@termCacheSlot\endcsname{#1}%
+  \expandafter\protected@xdef
+    \csname RDFReference@termCacheTerm@\the\RDFReference@termCacheSlot\endcsname{#2}%
+  \expandafter\protected@xdef
+    \csname RDFReference@termCacheKind@\the\RDFReference@termCacheSlot\endcsname{#3}%
+  \expandafter\protected@xdef
+    \csname RDFReference@termCacheLanguage@\the\RDFReference@termCacheSlot\endcsname{#4}%
+  \expandafter\global\expandafter\let
+    \csname RDFReference@termCacheValue@\the\RDFReference@termCacheSlot\endcsname#5%
+}
+
+\def\RDFReference@emptyCacheValue{}
+\def\RDFReference@superFoundMarker{found}
+\def\RDFReference@superMissingMarker{missing}
+
+\def\RDFReference@termCacheClearSupers{%
+  \ifcsname RDFReference@termCacheSuperCount@\the\RDFReference@termCacheSlot\endcsname
+    \@tempcnta=\csname RDFReference@termCacheSuperCount@\the\RDFReference@termCacheSlot\endcsname\relax
+    \@tempcntb=1\relax
+    \@whilenum\@tempcntb<\numexpr\@tempcnta+1\relax\do{%
+      \expandafter\gdef
+        \csname RDFReference@termCacheSuperItem@\the\RDFReference@termCacheSlot @\the\@tempcntb\endcsname{}%
+      \advance\@tempcntb by 1\relax
+    }%
+    \expandafter\gdef
+      \csname RDFReference@termCacheSuperCount@\the\RDFReference@termCacheSlot\endcsname{0}%
+  \fi
+}
+
+\def\RDFReference@termCacheSuperStore{%
+  \expandafter\xdef
+    \csname RDFReference@termCacheSuperCount@\the\RDFReference@termCacheSlot\endcsname
+    {\the\RDFReference@superTotal}%
+  \RDFReference@superPosition=1\relax
+  \@whilenum\RDFReference@superPosition<\numexpr\RDFReference@superTotal+1\relax\do{%
+    \expandafter\let\expandafter\RDFReference@cacheTemp
+      \csname RDFReference@superItem@\the\RDFReference@superPosition\endcsname
+    \expandafter\global\expandafter\let
+      \csname RDFReference@termCacheSuperItem@\the\RDFReference@termCacheSlot @\the\RDFReference@superPosition\endcsname
+      \RDFReference@cacheTemp
+    \advance\RDFReference@superPosition by 1\relax
+  }%
+}
+
+\def\RDFReference@termCacheSuperRestore{%
+  \@tempcnta=\csname RDFReference@termCacheSuperCount@\the\RDFReference@termCacheHitSlot\endcsname\relax
+  \RDFReference@superTotal=\@tempcnta
+  \RDFReference@superPosition=1\relax
+  \@whilenum\RDFReference@superPosition<\numexpr\RDFReference@superTotal+1\relax\do{%
+    \expandafter\let\expandafter\RDFReference@cacheTemp
+      \csname RDFReference@termCacheSuperItem@\the\RDFReference@termCacheHitSlot @\the\RDFReference@superPosition\endcsname
+    \expandafter\global\expandafter\let
+      \csname RDFReference@superItem@\the\RDFReference@superPosition\endcsname
+      \RDFReference@cacheTemp
+    \advance\RDFReference@superPosition by 1\relax
+  }%
+}
+
+\newcommand{\RDFReference@append}[1]{%
+  \ifRDFReference@warningOnly
+  \else\ifRDFReference@streaming
+    #1%
+  \else
+    \expandafter\gdef\expandafter\RDFReference@records\expandafter{%
+      \RDFReference@records#1%
+    }%
+  \fi\fi
+}
+
+\newcommand{\RDFReference@appendURI}[1]{%
+  \ifRDFReference@warningOnly
+  \else\ifRDFReference@streaming
+    #1%
+  \else
+    \expandafter\gdef\expandafter\RDFReference@uriRecords\expandafter{%
+      \RDFReference@uriRecords#1%
+    }%
+  \fi\fi
+}
+
+\newcommand{\RDFReference@appendSuper}[1]{%
+  \ifRDFReference@warningOnly
+  \else\ifRDFReference@streaming
+    #1%
+  \else
+    \expandafter\gdef\expandafter\RDFReference@superRecords\expandafter{%
+      \RDFReference@superRecords#1%
+    }%
+  \fi\fi
+}
+
+\newcommand{\RDFReference@appendDirectSuper}[1]{%
+  \ifRDFReference@warningOnly
+  \else\ifRDFReference@streaming
+    #1%
+  \else
+    \expandafter\gdef\expandafter\RDFReference@directSuperRecords\expandafter{%
+      \RDFReference@directSuperRecords#1%
+    }%
+  \fi\fi
+}
+
+\newcommand{\RDFReference@appendMetadata}[1]{%
+  \ifRDFReference@warningOnly
+  \else\ifRDFReference@streaming
+    #1%
+  \else
+    \expandafter\gdef\expandafter\RDFReference@metadataRecords\expandafter{%
+      \RDFReference@metadataRecords#1%
+    }%
+  \fi\fi
+}
+
+\newcommand{\RDFReference@appendBibRecord}[1]{%
+  \ifRDFReference@warningOnly
+  \else\ifRDFReference@streaming
+    #1%
+  \else
+    \expandafter\gdef\expandafter\RDFReference@bibRecords\expandafter{%
+      \RDFReference@bibRecords#1%
+    }%
+  \fi\fi
+}
+
+\long\def\RDFReference@storedTermRecord#1#2#3#4{}
+\long\def\RDFReference@storedHierarchyRecord#1#2#3#4#5{}
+
+\newcommand{\RDFReference@appendBibFile}[1]{%
+  \IfSubStr{\RDFReference@bibSeen}{|#1|}{}{%
+    \xdef\RDFReference@bibSeen{\RDFReference@bibSeen|#1|}%
+    \IfEq{\RDFReference@bibFiles}{}{%
+      \xdef\RDFReference@bibFiles{#1}%
+    }{%
+      \xdef\RDFReference@bibFiles{\RDFReference@bibFiles,#1}%
+    }%
+  }%
+}
+
+\long\def\RDFReferenceRecord#1#2#3#4#5#6#7{%
+  \RDFReference@append{%
+    \RDFReference@storedRecord{#1}{#2}{#3}{#4}{#5}{#6}{#7}%
+  }%
+}
+
+\long\def\RDFReferenceURIRecord#1#2#3{%
+  \RDFReference@appendURI{%
+    \RDFReference@storedURIRecord{#1}{#2}{#3}%
+  }%
+}
+
+\long\def\RDFReferenceTermRecord#1#2#3#4{%
+  \ifRDFReference@warningOnly
+  \else\ifRDFReference@streaming
+    \RDFReference@storedTermRecord{#1}{#2}{#3}{#4}%
+  \else
+    \expandafter\gdef\expandafter\RDFReference@termRecords\expandafter{%
+      \RDFReference@termRecords
+      \RDFReference@storedTermRecord{#1}{#2}{#3}{#4}%
+    }%
+  \fi\fi
+}
+
+\long\def\RDFReferenceHierarchyRecord#1#2#3#4#5{%
+  \ifRDFReference@warningOnly
+  \else\ifRDFReference@streaming
+    \RDFReference@storedHierarchyRecord{#1}{#2}{#3}{#4}{#5}%
+  \else
+    \expandafter\gdef\expandafter\RDFReference@hierarchyRecords\expandafter{%
+      \RDFReference@hierarchyRecords
+      \RDFReference@storedHierarchyRecord{#1}{#2}{#3}{#4}{#5}%
+    }%
+  \fi\fi
+}
+
+\long\def\RDFReferenceSuperRecord#1#2#3{%
+  \RDFReference@appendSuper{%
+    \RDFReference@storedSuperRecord{#1}{#2}{#3}%
+  }%
+}
+
+\long\def\RDFReferenceDirectSuperRecord#1#2#3{%
+  \RDFReference@appendDirectSuper{%
+    \RDFReference@storedDirectSuperRecord{#1}{#2}{#3}%
+  }%
+}
+
+\long\def\RDFReferenceMetadataRecord#1#2#3#4#5#6#7{%
+  \RDFReference@appendMetadata{%
+    \RDFReference@storedMetadataRecord{#1}{#2}{#3}{#4}{#5}{#6}{#7}%
+  }%
+}
+
+\long\def\RDFReferenceBibRecord#1#2#3{%
+  \RDFReference@appendBibRecord{%
+    \RDFReference@storedBibRecord{#1}{#2}{#3}%
+  }%
+}
+
+\def\RDFReferenceBibWarning#1#2{%
+  \ifRDFReference@warningOnly
+    \PackageWarning{RDFTools}{BIBO resource `#2' in prefix `#1' has no
+      title; using its identifier as the title}%
+  \fi
+}
+
+\def\RDFReference@clearRecords{%
+  \gdef\RDFReference@records{}%
+  \gdef\RDFReference@uriRecords{}%
+  \gdef\RDFReference@termRecords{}%
+  \gdef\RDFReference@hierarchyRecords{}%
+  \gdef\RDFReference@superRecords{}%
+  \gdef\RDFReference@directSuperRecords{}%
+  \gdef\RDFReference@metadataRecords{}%
+  \gdef\RDFReference@bibRecords{}%
+}
+
+\def\RDFReference@inputCache#1{%
+  \edef\RDFReference@savedEndlinechar{\the\endlinechar}%
+  \endlinechar=-1\relax
+  \input{#1}%
+  \endlinechar=\RDFReference@savedEndlinechar\relax
+}
+
+\def\RDFReference@scanSource#1{%
+  \ifcsname RDFReference@cachePath@#1\endcsname
+    \RDFReference@streamingtrue
+    \RDFReference@inputCache{\csname RDFReference@cachePath@#1\endcsname}%
+    \RDFReference@streamingfalse
+  \fi
+}
+
+\def\RDFReference@storedRecord#1#2#3#4#5#6#7{%
+  \IfEq{#1}{\RDFReference@lookupPrefix}{%
+    \IfEq{#2}{\RDFReference@lookupTerm}{%
+      \IfEq{#3}{\RDFReference@lookupKind}{%
+        \RDFReference@consider{#4}{#5}{#6}{#7}%
+      }{}%
+    }{}%
+  }{}%
+}
+
+\def\RDFReference@storedURIRecord#1#2#3{%
+  \IfEq{#1}{\RDFReference@lookupPrefix}{%
+    \IfEq{#2}{\RDFReference@lookupTerm}{%
+      \ifx\RDFReference@uriResult\@empty
+        \def\RDFReference@uriResult{#3}%
+      \fi
+    }{}%
+  }{}%
+}
+
+\def\RDFReference@storedSuperRecord#1#2#3{%
+  \ifRDFReference@directSuperOnly
+  \else
+    \IfEq{#1}{\RDFReference@superPrefix}{%
+      \IfEq{#2}{\RDFReference@superTerm}{%
+        \advance\RDFReference@superTotal by 1\relax
+        \expandafter\gdef\csname RDFReference@superItem@\the\RDFReference@superTotal\endcsname{#3}%
+      }{}%
+    }{}%
+  \fi
+}
+
+\def\RDFReference@storedDirectSuperRecord#1#2#3{%
+  \ifRDFReference@directSuperOnly
+    \IfEq{#1}{\RDFReference@superPrefix}{%
+      \IfEq{#2}{\RDFReference@superTerm}{%
+        \advance\RDFReference@superTotal by 1\relax
+        \expandafter\gdef\csname RDFReference@superItem@\the\RDFReference@superTotal\endcsname{#3}%
+      }{}%
+    }{}%
+  \fi
+}
+
+\def\RDFReference@storedMetadataRecord#1#2#3#4#5#6#7{%
+  \IfEq{#1}{\RDFReference@metadataPrefix}{%
+    \IfEq{#2}{\RDFReference@metadataKind}{%
+      \RDFReference@considerMetadata{#4}{#5}{#3}{#6}{#7}%
+    }{}%
+  }{}%
+}
+
+\def\RDFReference@storedBibRecord#1#2#3{%
+  \IfEq{#1}{\RDFReference@bibPrefix}{%
+    \IfEq{#2}{\RDFReference@bibTerm}{%
+      \ifx\RDFReference@bibResult\@empty
+        \def\RDFReference@bibResult{#3}%
+      \fi
+    }{}%
+  }{}%
+}
+
+\def\RDFReference@resetStreamSelectors{%
+  \def\RDFReference@lookupPrefix{RDFToolsInternalNoMatchSentinel}%
+  \def\RDFReference@lookupTerm{RDFToolsInternalNoMatchSentinel}%
+  \def\RDFReference@lookupKind{RDFToolsInternalNoMatchSentinel}%
+  \def\RDFReference@superPrefix{RDFToolsInternalNoMatchSentinel}%
+  \def\RDFReference@superTerm{RDFToolsInternalNoMatchSentinel}%
+  \def\RDFReference@metadataPrefix{RDFToolsInternalNoMatchSentinel}%
+  \def\RDFReference@metadataKind{RDFToolsInternalNoMatchSentinel}%
+  \def\RDFReference@bibPrefix{RDFToolsInternalNoMatchSentinel}%
+  \def\RDFReference@bibTerm{RDFToolsInternalNoMatchSentinel}%
+}
+
+\def\RDFReference@languagePriority#1#2{%
+  \def\RDFReference@candidatePriority{99}%
+  \IfEq{\RDFReference@requestTag}{}{%
+    \IfEq{#1}{}{%
+      \def\RDFReference@candidatePriority{2}%
+    }{%
+      \IfEq{#1}{en}{\def\RDFReference@candidatePriority{1}}{}%
+    }%
+  }{%
+    \edef\RDFReference@candidateTag{#1-#2}%
+    \edef\RDFReference@requestedTag{\RDFReference@requestTag}%
+    \ifx\RDFReference@candidateTag\RDFReference@requestedTag
+      \def\RDFReference@candidatePriority{1}%
+    \fi
+    \ifnum\RDFReference@candidatePriority>1
+      \IfEq{\RDFReference@requestLanguage}{}{%
+        \IfEq{\RDFReference@requestRegion}{}{%
+        }{%
+          \IfEq{#2}{\RDFReference@requestRegion}{%
+            \def\RDFReference@candidatePriority{2}%
+          }{}%
+        }%
+      }{%
+        \IfEq{#1}{\RDFReference@requestLanguage}{%
+          \def\RDFReference@candidatePriority{2}%
+        }{}%
+        \IfEq{\RDFReference@requestRegion}{}{%
+        }{%
+          \IfEq{#2}{\RDFReference@requestRegion}{%
+            \def\RDFReference@candidatePriority{2}%
+          }{}%
+        }%
+      }%
+      \IfEq{#1}{en}{\def\RDFReference@candidatePriority{3}}{}%
+      \IfEq{#1}{}{%
+        \def\RDFReference@candidatePriority{4}%
+      }{}%
+    \fi
+  }%
+}
+
+\def\RDFReference@consider#1#2#3#4{%
+  \RDFReference@languagePriority{#1}{#2}%
+  \ifx\RDFReference@candidatePriority\@empty
+  \else
+    \ifnum\RDFReference@candidatePriority<\RDFReference@bestPriority
+      \edef\RDFReference@bestPriority{\RDFReference@candidatePriority}%
+      \edef\RDFReference@bestRank{#3}%
+      \def\RDFReference@result{#4}%
+    \else\ifnum\RDFReference@candidatePriority=\RDFReference@bestPriority
+      \ifnum#3<\RDFReference@bestRank
+        \edef\RDFReference@bestRank{#3}%
+        \def\RDFReference@result{#4}%
+      \fi
+    \fi\fi
+  \fi
+}
+
+\def\RDFReference@considerMetadata#1#2#3#4#5{%
+  \RDFReference@languagePriority{#1}{#2}%
+  \ifnum\RDFReference@candidatePriority<99
+    \@tempcnta=#3\relax
+    \multiply\@tempcnta by 100\relax
+    \@tempcntb=\RDFReference@candidatePriority\relax
+    \advance\@tempcnta by \@tempcntb
+    \@tempcntb=#4\relax
+    \advance\@tempcnta by \@tempcntb
+    \ifnum\@tempcnta<\RDFReference@bestScore
+      \edef\RDFReference@bestScore{\the\@tempcnta}%
+      \def\RDFReference@metadataValue{#5}%
+    \fi
+  \fi
+}
+
+\def\RDFReference@setRequest#1{%
+  \def\RDFReference@requestTag{#1}%
+  \def\RDFReference@requestLanguage{}%
+  \def\RDFReference@requestRegion{}%
+  \IfSubStr{#1}{-}{%
+    \StrBefore{#1}{-}[\RDFReference@requestLanguage]%
+    \StrBehind{#1}{-}[\RDFReference@requestRegion]%
+  }{%
+    \edef\RDFReference@lowerRequest{#1}%
+    \lowercase{\edef\RDFReference@lowerRequest{#1}}%
+    \IfEq{#1}{\RDFReference@lowerRequest}{%
+      \def\RDFReference@requestLanguage{#1}%
+    }{%
+      \def\RDFReference@requestRegion{#1}%
+    }%
+  }%
+}
+
+\def\RDFReference@lookup#1#2#3#4{%
+  \RDFReference@glossaryUse{#1}{#2}%
+  \RDFReference@resetStreamSelectors
+  \def\RDFReference@lookupPrefix{#1}%
+  \def\RDFReference@lookupTerm{#2}%
+  \def\RDFReference@lookupKind{#3}%
+  \RDFReference@setRequest{#4}%
+  \def\RDFReference@result{}%
+  \def\RDFReference@bestPriority{99}%
+  \def\RDFReference@bestRank{99}%
+  \RDFReference@termCacheLookup{#1}{#2}{#3}{\RDFReference@requestTag}%
+  \ifRDFReference@termCacheHit
+    \let\RDFReference@result\RDFReference@cacheValue
+  \else
+    \RDFReference@scanSource{#1}%
+    \ifx\RDFReference@result\@empty
+    \else
+      \RDFReference@termCacheStore{#1}{#2}{#3}{\RDFReference@requestTag}\RDFReference@result
+    \fi
+  \fi
+  \ifx\RDFReference@result\@empty
+    \PackageWarning{RDFTools}{No #3 found for term `#2' in prefix `#1'}%
+    \def\RDFReference@result{Undefined}%
+  \fi
+  \RDFReference@index{#1}{#2}%
+  \RDFReference@glossaryLink{#1}{#2}{\RDFReference@result}%
+}
+
+\def\RDFReference@uriLookup#1#2{%
+  \RDFReference@glossaryUse{#1}{#2}%
+  \RDFReference@resetStreamSelectors
+  \def\RDFReference@lookupPrefix{#1}%
+  \def\RDFReference@lookupTerm{#2}%
+  \def\RDFReference@uriResult{}%
+  \RDFReference@termCacheLookup{#1}{#2}{uri}{}%
+  \ifRDFReference@termCacheHit
+    \let\RDFReference@uriResult\RDFReference@cacheValue
+  \else
+    \RDFReference@scanSource{#1}%
+    \ifx\RDFReference@uriResult\@empty
+    \else
+      \RDFReference@termCacheStore{#1}{#2}{uri}{}\RDFReference@uriResult
+    \fi
+  \fi
+  \ifx\RDFReference@uriResult\@empty
+    \PackageWarning{RDFTools}{No URI found for term `#2' in prefix `#1'}%
+    \def\RDFReference@uriResult{}%
+  \fi
+  \RDFReference@index{#1}{#2}%
+}
+
+\def\RDFReference@metadataLookup#1#2#3{%
+  \RDFReference@resetStreamSelectors
+  \def\RDFReference@metadataPrefix{#1}%
+  \def\RDFReference@metadataKind{#2}%
+  \RDFReference@setRequest{#3}%
+  \def\RDFReference@metadataValue{}%
+  \def\RDFReference@bestScore{9999}%
+  \RDFReference@termCacheLookup{#1}{#2}{metadata}{\RDFReference@requestTag}%
+  \ifRDFReference@termCacheHit
+    \let\RDFReference@metadataValue\RDFReference@cacheValue
+  \else
+    \RDFReference@scanSource{#1}%
+    \ifx\RDFReference@metadataValue\@empty
+    \else
+      \RDFReference@termCacheStore{#1}{#2}{metadata}{\RDFReference@requestTag}\RDFReference@metadataValue
+    \fi
+  \fi
+  \ifx\RDFReference@metadataValue\@empty
+    \PackageWarning{RDFTools}{No #2 found for prefix `#1'}%
+    \def\RDFReference@metadataValue{Undefined}%
+  \fi
+  \RDFReference@metadataValue
+}
+
+\def\RDFReference@getDocumentLanguage{%
+  \def\RDFReference@documentLanguage{en}%
+  \@ifundefined{languagename}{}{%
+    \edef\RDFReference@languageName{\languagename}%
+    \IfEq{\RDFReference@languageName}{english}{\def\RDFReference@documentLanguage{en}}{}%
+    \IfEq{\RDFReference@languageName}{american}{\def\RDFReference@documentLanguage{en}}{}%
+    \IfEq{\RDFReference@languageName}{british}{\def\RDFReference@documentLanguage{en}}{}%
+    \IfEq{\RDFReference@languageName}{french}{\def\RDFReference@documentLanguage{fr}}{}%
+    \IfEq{\RDFReference@languageName}{german}{\def\RDFReference@documentLanguage{de}}{}%
+    \IfEq{\RDFReference@languageName}{ngerman}{\def\RDFReference@documentLanguage{de}}{}%
+    \IfEq{\RDFReference@languageName}{spanish}{\def\RDFReference@documentLanguage{es}}{}%
+    \IfEq{\RDFReference@languageName}{italian}{\def\RDFReference@documentLanguage{it}}{}%
+    \IfEq{\RDFReference@languageName}{portuguese}{\def\RDFReference@documentLanguage{pt}}{}%
+    \IfEq{\RDFReference@languageName}{dutch}{\def\RDFReference@documentLanguage{nl}}{}%
+    \IfEq{\RDFReference@languageName}{russian}{\def\RDFReference@documentLanguage{ru}}{}%
+    \IfEq{\RDFReference@languageName}{japanese}{\def\RDFReference@documentLanguage{ja}}{}%
+    \IfEq{\RDFReference@languageName}{chinese}{\def\RDFReference@documentLanguage{zh}}{}%
+  }%
+}
+
+\def\RDFReference@sourceLookup#1#2{%
+  \RDFReference@getDocumentLanguage
+  \RDFReference@metadataLookup{#1}{#2}{\RDFReference@documentLanguage}%
+}
+
+\def\RDFReference@registerBibFile#1{%
+  \RDFReference@appendBibFile{#1}%
+  \@ifpackageloaded{biblatex}{%
+    \IfSubStr{\RDFReference@biblatexSeen}{|#1|}{}{%
+      \xdef\RDFReference@biblatexSeen{%
+        \RDFReference@biblatexSeen|#1|%
+      }%
+      \addbibresource{#1}%
+    }%
+  }{}%
+}
+
+\newcommand{\RDFReferenceBibFile}[1]{%
+  rdfCache/\jobname.rdfref.#1.bib%
+}
+
+\newcommand{\RDFReferenceBibFiles}{%
+  \RDFReference@bibFiles%
+}
+
+% Classic BibTeX and natbib both consume the bibliography list through
+% \bibliography. Append generated files without changing user-owned .bib files.
+% biblatex replaces this interface, so it is registered through
+% \RDFReference@registerBibFile instead.
+\@ifpackageloaded{biblatex}{}{%
+  \let\RDFReference@originalBibliography\bibliography
+  \def\bibliography#1{%
+    \IfEq{\RDFReference@bibFiles}{}{%
+      \RDFReference@originalBibliography{#1}%
+    }{%
+      \edef\RDFReference@bibliographyArgument{%
+        #1,\RDFReference@bibFiles%
+      }%
+      \expandafter\RDFReference@originalBibliography
+        \expandafter{\RDFReference@bibliographyArgument}%
+    }%
+  }%
+}
+
+% Dispatch on the first argument, not the following token: a compact reference
+% must not consume a braced group that belongs to the surrounding document.
+% Split only the first colon, preserving aliases, full IRIs and escaped tokens
+% in the term. End the parsing group before optional language arguments are read.
+\ExplSyntaxOn
+\tl_new:N \l__rdftools_reference_tl
+\tl_new:N \l__rdftools_vocabulary_tl
+\tl_new:N \l__rdftools_term_tl
+\seq_new:N \l__rdftools_reference_seq
+\tl_new:N \l__rdftools_option_true_tl
+\tl_new:N \l__rdftools_option_false_tl
+\tl_new:N \l__rdftools_option_space_tl
+% Unlike \@ifnextchar, restore skipped source whitespace when no optional
+% bracket follows. Do not synthesize spaces: adjacent punctuation and
+% intentional suffixes must remain adjacent. Keep scanner state local because
+% lookups can invoke other lookups while rendering hierarchy lists.
+\cs_new_protected:Npn \RDFReference@ifnextbracket #1#2
+  {
+    \group_begin:
+    \tl_set:Nn \l__rdftools_option_true_tl {#1}
+    \tl_set:Nn \l__rdftools_option_false_tl {#2}
+    \tl_clear:N \l__rdftools_option_space_tl
+    \__rdftools_peek_option:
+  }
+\cs_new_protected:Npn \__rdftools_peek_option:
+  {
+    \peek_meaning_remove:NTF \c_space_token
+      {
+        \tl_set:Nn \l__rdftools_option_space_tl { ~ }
+        \__rdftools_peek_option:
+      }
+      {
+        \peek_meaning:NTF [
+          {
+            \use:x
+              { \group_end: \exp_not:V \l__rdftools_option_true_tl }
+          }
+          {
+            \use:x
+              {
+                \group_end:
+                \exp_not:V \l__rdftools_option_false_tl
+                \exp_not:V \l__rdftools_option_space_tl
+              }
+          }
+      }
+  }
+\cs_new_protected:Npn \RDFReference@termArguments #1#2
+  {
+    \group_begin:
+    \tl_set:No \l__rdftools_reference_tl {#2}
+    \exp_args:NnV \regex_extract_once:nnNTF
+      { \A ([^:]*) : (.*) \Z }
+      \l__rdftools_reference_tl \l__rdftools_reference_seq
+      {
+        \seq_pop_left:NN \l__rdftools_reference_seq \l__rdftools_reference_tl
+        \seq_pop_left:NN \l__rdftools_reference_seq \l__rdftools_vocabulary_tl
+        \seq_pop_left:NN \l__rdftools_reference_seq \l__rdftools_term_tl
+        \bool_lazy_or:nnTF
+          { \tl_if_empty_p:N \l__rdftools_vocabulary_tl }
+          { \tl_if_empty_p:N \l__rdftools_term_tl }
+          {
+            \group_end:
+            \PackageError{RDFTools}{Invalid~compact~RDF~reference~`#2'}
+              {Use~vocabulary:term~with~a~nonempty~vocabulary~and~term,
+               ~or~use~the~two-argument~form.}
+            Undefined
+          }
+          {
+            \use:x
+              {
+                \group_end:
+                \exp_not:n {#1}
+                  { \exp_not:V \l__rdftools_vocabulary_tl }
+                  { \exp_not:V \l__rdftools_term_tl }
+              }
+          }
+      }
+      { \group_end: #1 {#2} }
+  }
+\ExplSyntaxOff
+
+\newcommand{\RDFTermURI}[1]{%
+  \RDFReference@termArguments{\RDFReference@termURI}{#1}%
+}
+
+\def\RDFReference@termURI#1#2{%
+  \RDFReference@uriLookup{#1}{#2}%
+  \ifx\RDFReference@uriResult\@empty
+    Undefined%
+  \else
+    \href{\RDFReference@uriResult}{#1:#2}%
+  \fi
+}
+
+\newcommand{\RDFTitle}[1]{%
+  \RDFReference@ifnextbracket{\RDFReference@title@optional{#1}}{%
+    \RDFReference@sourceLookup{#1}{title}%
+  }%
+}
+
+\def\RDFReference@title@optional#1[#2]{%
+  \RDFReference@ifnextbracket{\RDFReference@title@region{#1}{#2}}{%
+    \RDFReference@metadataLookup{#1}{title}{#2}%
+  }%
+}
+
+\def\RDFReference@title@region#1#2[#3]{%
+  \RDFReference@metadataLookup{#1}{title}{#2-#3}%
+}
+
+\newcommand{\RDFName}[1]{%
+  \RDFReference@ifnextbracket{\RDFReference@sourceName@optional{#1}}{%
+    \RDFReference@sourceLookup{#1}{source-name}%
+  }%
+}
+
+\def\RDFReference@sourceName@optional#1[#2]{%
+  \RDFReference@ifnextbracket{\RDFReference@sourceName@region{#1}{#2}}{%
+    \RDFReference@metadataLookup{#1}{source-name}{#2}%
+  }%
+}
+
+\def\RDFReference@sourceName@region#1#2[#3]{%
+  \RDFReference@metadataLookup{#1}{source-name}{#2-#3}%
+}
+
+\newcommand{\RDFVersion}[1]{%
+  \RDFReference@metadataLookup{#1}{version}{}%
+}
+
+\def\RDFReference@index#1#2{%
+  \ifcsname RDFReference@indexEnabled@#1\endcsname
+    \ifnum\csname RDFReference@indexEnabled@#1\endcsname=1
+      \edef\RDFReference@indexKey{|#1:#2|}%
+      \IfSubStr{\RDFReference@indexSeen}{\RDFReference@indexKey}{}{%
+        \xdef\RDFReference@indexSeen{%
+          \RDFReference@indexSeen\RDFReference@indexKey
+        }%
+        \def\RDFReference@indexPage{0}%
+        \@ifundefined{thepage}{}{\edef\RDFReference@indexPage{\thepage}}%
+        \ifRDFReference@indexOpen
+          \@ifundefined{theHpage}{%
+            \edef\RDFReference@indexAnchor{RDFReferencePage-\thepage}%
+          }{%
+            \edef\RDFReference@indexAnchor{RDFReferencePage-\theHpage}%
+          }%
+          \ifcsname RDFReference@pageAnchor@\RDFReference@indexAnchor\endcsname
+          \else
+            \expandafter\gdef\csname RDFReference@pageAnchor@\RDFReference@indexAnchor\endcsname{}%
+            \@ifundefined{hypertarget}{}{%
+              \hypertarget{\RDFReference@indexAnchor}{}%
+            }%
+          \fi
+          \RDFReference@writeIndexLine{%
+            \string\RDFReferenceIndexEntry{#2}{#1}{\RDFReference@indexPage}%
+            [\RDFReference@indexAnchor]%
+          }%
+        \fi
+      }%
+    \fi
+  \fi
+}
+
+\define@key{RDFReference}{indexTerms}[true]{%
+  \IfEq{#1}{false}{\RDFReference@indexTermsfalse}{%
+    \RDFReference@indexTermstrue
+  }%
+}
+
+\define@key{RDFReference}{glossary}[full]{%
+  \IfEq{#1}{full}{\def\RDFReference@glossaryMode{full}}{%
+    \IfEq{#1}{used}{\def\RDFReference@glossaryMode{used}}{%
+      \IfEq{#1}{none}{\def\RDFReference@glossaryMode{none}}{%
+        \PackageError{RDFTools}{Invalid glossary option `#1'}{%
+          Use glossary=full, glossary=used, or glossary=none.}%
+      }%
+    }%
+  }%
+}
+
+\def\RDFReference@use@nooptions#1#2{%
+  \RDFReference@indexTermsfalse
+  \def\RDFReference@glossaryMode{none}%
+  \RDFReference@use{#1}{#2}%
+}
+
+\def\RDFReference@use@options[#1]#2#3{%
+  \RDFReference@indexTermsfalse
+  \def\RDFReference@glossaryMode{none}%
+  \setkeys{RDFReference}{#1}%
+  \RDFReference@use{#2}{#3}%
+}
+
+\newcommand{\useRDF}{%
+  \@ifnextchar[{\RDFReference@use@options}{\RDFReference@use@nooptions}%
+}
+
+\def\RDFReference@use#1#2{%
+  \RDFReference@checkShellEscape
+  \ifRDFReference@shellEscape
+    \RDFReference@queueSource{#1}{#2}%
+    \expandafter\xdef\csname RDFReference@cachePath@#1\endcsname{%
+      rdfCache/\jobname.rdfref.#1.tex}%
+    \ifcsname RDFReference@sourceRegistered@#1\endcsname
+    \else
+      \expandafter\gdef\csname RDFReference@sourceRegistered@#1\endcsname{1}%
+      \g@addto@macro\RDFReference@cacheChecks{%
+        \RDFReference@checkPreparedSource{#1}%
+      }%
+      \g@addto@macro\RDFReference@sources{%
+        \RDFReference@prepareSource{#1}%
+      }%
+    \fi
+    \IfEq{\RDFReference@glossaryMode}{none}{}{%
+      \RequirePackage{RDFTools-glossaries}%
+    }%
+    \expandafter\xdef\csname RDFReference@glossaryMode@#1\endcsname{%
+      \RDFReference@glossaryMode}%
+    \expandafter\gdef\csname RDFReference@source@#1\endcsname{#2}%
+    \ifRDFReference@indexTerms
+      \expandafter\gdef\csname RDFReference@indexEnabled@#1\endcsname{1}%
+    \else
+      \expandafter\gdef\csname RDFReference@indexEnabled@#1\endcsname{0}%
+    \fi
+    \RDFReference@registerBibFile{rdfCache/\jobname.rdfref.#1.bib}%
+  \else
+    \PackageError{RDFTools}{Unrestricted shell escape is required by \string\useRDF}{%
+      Enable shell escape for this trusted document. For PDFLaTeX, XeLaTeX,
+      or LuaLaTeX, pass -shell-escape; for Tectonic, pass -Z shell-escape.}%
+  \fi
+}
+
+\newcommand{\citeBibo}[2]{%
+  \RDFReference@resetStreamSelectors
+  \def\RDFReference@bibPrefix{#1}%
+  \def\RDFReference@bibTerm{#2}%
+  \def\RDFReference@bibResult{}%
+  \RDFReference@termCacheLookup{#1}{#2}{bib}{}%
+  \ifRDFReference@termCacheHit
+    \let\RDFReference@bibResult\RDFReference@cacheValue
+  \else
+    \RDFReference@scanSource{#1}%
+    \ifx\RDFReference@bibResult\@empty
+    \else
+      \RDFReference@termCacheStore{#1}{#2}{bib}{}\RDFReference@bibResult
+    \fi
+  \fi
+  \ifx\RDFReference@bibResult\@empty
+    \PackageWarning{RDFTools}{No BIBO bibliographic resource found for
+      term `#2' in prefix `#1'}%
+    \texttt{Undefined}%
+  \else
+    \@ifpackageloaded{biblatex}{}{%
+      \@ifpackageloaded{natbib}{}{%
+        \PackageWarning{RDFTools}{No biblatex or natbib package detected;
+          using the classic BibTeX citation interface}%
+      }%
+    }%
+    \cite{\RDFReference@bibResult}%
+  \fi
+}
+
+\newcommand{\RDFTermName}[1]{%
+  \RDFReference@termArguments{\RDFReference@termName}{#1}%
+}
+
+\def\RDFReference@termName#1#2{%
+  \RDFReference@ifnextbracket{\RDFReference@name@optional{#1}{#2}}{%
+    \RDFReference@lookup{#1}{#2}{name}{}%
+  }%
+}
+
+\def\RDFReference@name@optional#1#2[#3]{%
+  \RDFReference@ifnextbracket{\RDFReference@name@region{#1}{#2}{#3}}{%
+    \RDFReference@lookup{#1}{#2}{name}{#3}%
+  }%
+}
+
+\def\RDFReference@name@region#1#2#3[#4]{%
+  \RDFReference@lookup{#1}{#2}{name}{#3-#4}%
+}
+
+\def\RDFReference@renderSuperTerm#1{%
+  \RDFTermName{\RDFReference@superRenderPrefix}{#1}%
+}
+
+\def\RDFReference@warnUnknownHierarchyTerm#1#2{%
+  \PackageWarning{RDFTools}{Unknown term `#2' in prefix `#1'}%
+}
+
+\newcommand{\RDFListSuper}[1]{%
+  \RDFReference@termArguments{%
+    \RDFReference@listSuper{direct}}{#1}%
+}
+
+\newcommand{\RDFListSuperTransitive}[1]{%
+  \RDFReference@termArguments{%
+    \RDFReference@listSuper{transitive}}{#1}%
+}
+
+\def\RDFReference@listSuper#1#2#3{%
+  \RDFReference@glossaryUse{#2}{#3}%
+  \RDFReference@resetStreamSelectors
+  \def\RDFReference@superPrefix{#2}%
+  \def\RDFReference@superTerm{#3}%
+  \def\RDFReference@superRenderPrefix{#2}%
+  \def\RDFReference@directMode{direct}%
+  \def\RDFReference@currentSuperMode{#1}%
+  \ifx\RDFReference@directMode\RDFReference@currentSuperMode
+    \RDFReference@directSuperOnlytrue
+  \else
+    \RDFReference@directSuperOnlyfalse
+  \fi
+  \RDFReference@superTotal=0\relax
+  \RDFReference@termCacheLookup{#2}{#3}{hierarchy-#1}{}%
+  \ifRDFReference@termCacheHit
+    \RDFReference@termCacheSuperRestore
+    \ifx\RDFReference@cacheValue\RDFReference@superMissingMarker
+      \RDFReference@warnUnknownHierarchyTerm{#2}{#3}%
+    \fi
+  \else
+    % URI records distinguish an unknown resource from a valid term with no
+    % parent relationships; both cases otherwise produce an empty list.
+    \def\RDFReference@lookupPrefix{#2}%
+    \def\RDFReference@lookupTerm{#3}%
+    \def\RDFReference@uriResult{}%
+    \RDFReference@scanSource{#2}%
+    \ifx\RDFReference@uriResult\@empty
+      \RDFReference@warnUnknownHierarchyTerm{#2}{#3}%
+      \RDFReference@termCacheStore{#2}{#3}{hierarchy-#1}{}%
+        \RDFReference@superMissingMarker
+    \else
+      \RDFReference@termCacheStore{#2}{#3}{hierarchy-#1}{}%
+        \RDFReference@superFoundMarker
+    \fi
+    \RDFReference@termCacheSuperStore
+  \fi
+  \RDFReference@superPosition=1\relax
+  \@whilenum\RDFReference@superPosition<\numexpr\RDFReference@superTotal+1\relax\do{%
+    \ifnum\RDFReference@superPosition>1\relax
+      \ifnum\RDFReference@superPosition=\RDFReference@superTotal
+        \space and\space
+      \else
+        ,\space
+      \fi
+    \fi
+    \expandafter\RDFReference@renderSuperTerm\expandafter{%
+      \csname RDFReference@superItem@\the\RDFReference@superPosition\endcsname
+    }%
+    \advance\RDFReference@superPosition by 1\relax
+  }%
+}
+
+\newcommand{\RDFTermDefinition}[1]{%
+  \RDFReference@termArguments{\RDFReference@termDefinition}{#1}%
+}
+
+\def\RDFReference@termDefinition#1#2{%
+  \RDFReference@ifnextbracket{\RDFReference@definition@optional{#1}{#2}}{%
+    \RDFReference@lookup{#1}{#2}{definition}{}%
+  }%
+}
+
+\def\RDFReference@definition@optional#1#2[#3]{%
+  \RDFReference@ifnextbracket{\RDFReference@definition@region{#1}{#2}{#3}}{%
+    \RDFReference@lookup{#1}{#2}{definition}{#3}%
+  }%
+}
+
+\def\RDFReference@definition@region#1#2#3[#4]{%
+  \RDFReference@lookup{#1}{#2}{definition}{#3-#4}%
+}
+
+\def\RDFReferenceIndexEntry#1#2#3{%
+  \@ifnextchar[{\RDFReferenceIndexEntry@withAnchor{#1}{#2}{#3}}{%
+    \RDFReferenceIndexEntry@render{#1}{#2}{#3}{}%
+  }%
+}
+
+\def\RDFReferenceIndexEntry@withAnchor#1#2#3[#4]{%
+  \RDFReferenceIndexEntry@render{#1}{#2}{#3}{#4}%
+}
+
+\def\RDFReferenceIndexEntry@render#1#2#3#4{%
+  \RDFReference@indexHasEntriestrue
+  \item[\texttt{#1}] \texttt{#2}, %
+  \IfEq{#4}{}{%
+    page~#3%
+  }{%
+    \hyperlink{#4}{page~#3}%
+  }\par
+}
+
+\newcommand{\makeRDFIndex}{%
+  \clearpage
+  \section*{RDF Term Index}%
+  \addcontentsline{toc}{section}{RDF Term Index}%
+  \IfFileExists{rdfCache/\jobname.rdfidx}{%
+    \RDFReference@indexHasEntriesfalse
+    \begin{description}
+      \InputIfFileExists{rdfCache/\jobname.rdfidx}{}{}%
+      \ifRDFReference@indexHasEntries
+      \else
+        \item[No indexed terms.] No terms have been referenced from a source
+        registered with \texttt{indexTerms}.\par
+      \fi
+    \end{description}%
+  }{%
+    \noindent The RDF term index will be populated after the next compilation
+    pass.\par
+  }%
+}
+
+\AtEndPreamble{%
+  \ifRDFReference@sourcesQueued
+    \IfFileExists{RDFTools.lua}{%
+      \immediate\write18{%
+        texlua "$(kpsewhich --format=tex RDFTools.lua)" prepare-sources
+        --sources-hex "\RDFReference@sourceHex"
+        --cache-prefix "rdfCache/\jobname.rdfref."
+        --warnings "rdfCache/\jobname.rdfwarn.tex"%
+      }%
+      \RDFReference@cacheChecks
+      \IfFileExists{rdfCache/\jobname.rdfwarn.tex}{%
+        \RDFReference@warningOnlytrue
+        \RDFReference@inputCache{rdfCache/\jobname.rdfwarn.tex}%
+        \RDFReference@warningOnlyfalse
+      }{}%
+    }{%
+      \PackageError{RDFTools}{RDFTools.lua helper not found}{%
+        Install RDFTools.lua on the TeX input path beside RDFTools.sty.}%
+    }%
+  \fi
+}
+
+\AtBeginDocument{%
+  \IfFileExists{RDFTools.lua}{%
+    \immediate\write18{%
+      texlua "$(kpsewhich --format=tex RDFTools.lua)" init-index
+      --output "rdfCache/\jobname.rdfidx.new"%
+    }%
+    \RDFReference@indexOpentrue
+  }{}%
+}
+
+\AtEndDocument{%
+  \ifRDFReference@indexOpen
+    \IfFileExists{RDFTools.lua}{%
+      \immediate\write18{%
+        texlua "$(kpsewhich --format=tex RDFTools.lua)" sort-index
+        --input "rdfCache/\jobname.rdfidx.new"
+        --output "rdfCache/\jobname.rdfidx"%
+      }%
+    }{}%
+    \RDFReference@indexOpenfalse
+  \fi
+}
+
+\makeatother

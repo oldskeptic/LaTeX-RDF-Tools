@@ -1,0 +1,26 @@
+@prefix ex: <https://example.org/reference/> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix dc: <http://purl.org/dc/elements/1.1/> .
+
+ex:Book a ex:Concept ;
+    skos:prefLabel "Book"@en ;
+    skos:prefLabel "Livre"@fr-CA ;
+    skos:definition "A written or printed work."@en ;
+    skos:definition "Un ouvrage écrit ou imprimé."@fr-CA .
+
+ex:Author a ex:Concept ;
+    foaf:name "Author"@en ;
+    rdfs:comment "A person who writes a work."@en .
+
+ex:FallbackConcept a ex:Concept ;
+    rdfs:label "Fallback concept" ;
+    rdfs:comment "This demonstrates the final untagged fallback." .
+
+ex:Ontology a owl:Ontology ;
+    dc:title "Reference catalog"@en ;
+    dc:title "Catalogue de référence"@fr-CA ;
+    rdfs:label "Reference catalog ontology"@en ;
+    owl:versionInfo "2.0" .

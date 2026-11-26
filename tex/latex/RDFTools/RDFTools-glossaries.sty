@@ -1,0 +1,346 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{RDFTools-glossaries}[2026/11/25 RDFTools glossary integration]
+% Author: Robert Warren
+\RequirePackage{glossaries}
+\makeatletter
+
+\newif\ifRDFReference@glossaryReady
+\RDFReference@glossaryReadyfalse
+\def\RDFReference@glossaryPending{}
+\def\RDFReference@glossaryFullEntries{}
+\def\RDFReference@glossaryLanguage{en}
+\newif\ifRDFReference@usedGlossaryFileOpen
+\newif\ifRDFReference@glossaryNeedsRerun
+\RDFReference@usedGlossaryFileOpenfalse
+\RDFReference@glossaryNeedsRerunfalse
+
+% This command is written to a small sidecar file so the next run can define
+% only the entries referenced by the preceding document pass.
+\def\RDFToolsUsedTerm#1{%
+  \expandafter\gdef\csname RDFReference@used@#1\endcsname{1}%
+}
+
+\def\RDFReference@markSelectedURI#1{%
+  \edef\RDFReference@selectedURIKey{\detokenize{#1}}%
+  \expandafter\def\csname RDFReference@selectedURI@\RDFReference@selectedURIKey\endcsname{1}%
+}
+
+\def\RDFReference@ifSelectedURI#1#2{%
+  \edef\RDFReference@selectedURIKey{\detokenize{#1}}%
+  \ifcsname RDFReference@selectedURI@\RDFReference@selectedURIKey\endcsname
+    #2%
+  \fi
+}
+
+\def\RDFReference@recordUsedTerm#1{%
+  \ifcsname RDFReference@usedWritten@#1\endcsname
+  \else
+    \expandafter\gdef\csname RDFReference@usedWritten@#1\endcsname{1}%
+    \ifRDFReference@usedGlossaryFileOpen
+      \RDFReference@writeUsedTerm{#1}%
+    \fi
+  \fi
+}
+
+\ExplSyntaxOn
+\cs_new_protected:Npn \RDFReference@writeUsedTerm #1
+  {
+    \str_set:Nx \l_tmpa_str { \string\RDFToolsUsedTerm{#1} }
+    \tl_clear:N \l_tmpa_tl
+    \str_map_inline:Nn \l_tmpa_str
+      { \tl_put_right:Nx \l_tmpa_tl { \int_to_hex:n {`##1} , } }
+    \immediate\write18
+      {
+        texlua~"$(kpsewhich~--format=tex~RDFTools.lua)"~append-index~--output~"rdfCache/\jobname.rdfused.new"~--data-hex~"\l_tmpa_tl"
+      }
+  }
+\seq_new:N \l__rdftools_glossary_classes_seq
+\seq_new:N \l__rdftools_glossary_properties_seq
+\cs_new_protected:Npn \RDFReference@glossaryHierarchyReset
+  {
+    \seq_clear:N \l__rdftools_glossary_classes_seq
+    \seq_clear:N \l__rdftools_glossary_properties_seq
+  }
+\cs_new_protected:Npn \RDFReference@glossaryHierarchyAdd #1#2
+  {
+    \str_if_eq:nnTF {#1}{class}
+      { \seq_put_right:Nn \l__rdftools_glossary_classes_seq {#2} }
+      { \seq_put_right:Nn \l__rdftools_glossary_properties_seq {#2} }
+  }
+\cs_new:Npn \RDFReference@glossaryClassList
+  {
+    \seq_use:Nnnn \l__rdftools_glossary_classes_seq
+      {~and~} {,~} {~and~}
+  }
+\cs_new:Npn \RDFReference@glossaryPropertyList
+  {
+    \seq_use:Nnnn \l__rdftools_glossary_properties_seq
+      {~and~} {,~} {~and~}
+  }
+\ExplSyntaxOff
+
+% Keep formatting local to RDF entries. In particular, don't change the
+% glossary style's punctuation for entries supplied by the document author.
+\DeclareRobustCommand{\RDFReference@glossaryDescription}[4]{%
+  #1\par\nobreak
+  \textbf{URI: }{\small\url{#2}}%
+  \ifstrempty{#3}{}{\par\nobreak\textbf{Superclasses: }#3}%
+  \ifstrempty{#4}{}{\par\nobreak\textbf{Superproperties: }#4}%
+  \nopostdesc
+}
+
+% Read fields without rendering text, creating index entries, or recursively
+% tracking glossary use. Reuse the normal language and predicate priorities.
+\def\RDFReference@glossaryField#1#2#3{%
+  \def\RDFReference@lookupPrefix{#1}%
+  \edef\RDFReference@lookupTerm{#2}%
+  \def\RDFReference@lookupKind{#3}%
+  \RDFReference@setRequest{\RDFReference@glossaryLanguage}%
+  \def\RDFReference@result{}%
+  \def\RDFReference@bestPriority{99}%
+  \def\RDFReference@bestRank{99}%
+  \RDFReference@records
+}
+
+\def\RDFReference@glossaryDefine#1#2#3#4{%
+  \begingroup
+  \ifglsentryexists{#3}{}{%
+    \RDFReference@glossaryField{#1}{#2}{name}%
+    \ifx\RDFReference@result\@empty
+      \def\RDFReference@glossaryName{#4}%
+    \else
+      \let\RDFReference@glossaryName\RDFReference@result
+    \fi
+    \RDFReference@glossaryField{#1}{#2}{definition}%
+    \ifx\RDFReference@result\@empty
+      \expandafter\gdef\csname RDFReference@glossaryMissing@#3\endcsname{1}%
+      \def\RDFReference@result{No definition available.}%
+    \fi
+    \let\RDFReference@glossaryDefinition\RDFReference@result
+    % Resolve ancestors without calling public lookup commands: rendering a
+    % glossary must not select more entries or create term-index records.
+    \RDFReference@glossaryHierarchyReset
+    \def\RDFReference@storedHierarchyRecord##1##2##3##4##5{%
+      \IfEq{##1}{#1}{%
+        \IfEq{##2}{#2}{%
+          \protected@edef\RDFReference@addAncestor{%
+            \noexpand\RDFReference@glossaryHierarchyAdd{##3}{%
+              \noexpand\href{##4}{\noexpand\nolinkurl{##5}}}%
+          }%
+          \RDFReference@addAncestor
+        }{}%
+      }{}%
+    }%
+    \RDFReference@hierarchyRecords
+    \protected@edef\RDFReference@glossaryClasses{\RDFReference@glossaryClassList}%
+    \protected@edef\RDFReference@glossaryProperties{\RDFReference@glossaryPropertyList}%
+    % Freeze field values: local lookup macros must not survive in the entry.
+    \protected@edef\RDFReference@declareGlossary{%
+      \noexpand\newglossaryentry{#3}{%
+        name={\unexpanded\expandafter{\RDFReference@glossaryName}},%
+        description={\noexpand\RDFReference@glossaryDescription
+          {\unexpanded\expandafter{\RDFReference@glossaryDefinition}}%
+          {\unexpanded{#2}}%
+          {\unexpanded\expandafter{\RDFReference@glossaryClasses}}%
+          {\unexpanded\expandafter{\RDFReference@glossaryProperties}}}}%
+    }%
+    \RDFReference@declareGlossary
+  }%
+  \endgroup
+}
+
+\def\RDFReference@glossaryEntry#1#2#3#4{%
+  \ifcsname RDFReference@glossaryMissing@#3\endcsname
+    \ifcsname RDFReference@glossaryWarned@#3\endcsname
+    \else
+      \expandafter\gdef\csname RDFReference@glossaryWarned@#3\endcsname{1}%
+      \PackageWarning{RDFTools}{No glossary definition found for term
+        `#2' in prefix `#1'; using a placeholder}%
+    \fi
+  \fi
+  \glsadd{#3}%
+}
+
+\def\RDFReference@glossaryFull{%
+  \ifRDFReference@glossaryReady
+    \RDFReference@glossaryFullEntries
+  \fi
+}
+
+\def\RDFReference@glossaryUse#1#2{%
+  \ifcsname RDFReference@glossaryMode@#1\endcsname
+    \IfEq{\csname RDFReference@glossaryMode@#1\endcsname}{none}{}{%
+      \ifRDFReference@glossaryReady
+        \begingroup
+        \RDFReference@resetStreamSelectors
+        \def\RDFReference@lookupPrefix{#1}%
+        \edef\RDFReference@lookupTerm{#2}%
+        \def\RDFReference@uriResult{}%
+        \RDFReference@scanSource{#1}%
+        \let\RDFReference@glossaryURI\RDFReference@uriResult
+        \def\RDFReference@storedTermRecord##1##2##3##4{%
+          \IfEq{##1}{#1}{%
+            \IfEq{##2}{\RDFReference@glossaryURI}{%
+              \IfEq{\csname RDFReference@glossaryMode@#1\endcsname}{used}{%
+                \RDFReference@recordUsedTerm{##3}%
+              }{}%
+              \ifglsentryexists{##3}{%
+                \RDFReference@glossaryEntry{##1}{##2}{##3}{##4}%
+              }{%
+                \global\RDFReference@glossaryNeedsReruntrue
+              }%
+            }{}%
+          }{}%
+        }%
+        \RDFReference@scanSource{#1}%
+        \endgroup
+      \else
+        \expandafter\gdef\expandafter\RDFReference@glossaryPending\expandafter{%
+          \RDFReference@glossaryPending
+          \RDFReference@glossaryUse{#1}{#2}%
+        }%
+      \fi
+    }%
+  \fi
+}
+
+% Link the existing lookup text without changing its language, first-use
+% state, or index records. URI commands deliberately keep their external href.
+% Resolve aliases through the same URI records as glossary selection; never
+% link missing resources or sources whose glossary integration is disabled.
+\long\def\RDFReference@glossaryLink#1#2#3{%
+  \begingroup
+  \def\RDFReference@glossaryText{#3}%
+  \ifRDFReference@glossaryReady
+    \ifcsname RDFReference@glossaryMode@#1\endcsname
+      \IfEq{\csname RDFReference@glossaryMode@#1\endcsname}{none}{}{%
+        \RDFReference@resetStreamSelectors
+        \def\RDFReference@lookupPrefix{#1}%
+        \edef\RDFReference@lookupTerm{#2}%
+        \def\RDFReference@uriResult{}%
+        \RDFReference@scanSource{#1}%
+        \let\RDFReference@glossaryURI\RDFReference@uriResult
+        \def\RDFReference@storedTermRecord##1##2##3##4{%
+          \IfEq{##1}{#1}{%
+            \IfEq{##2}{\RDFReference@glossaryURI}{%
+              \ifglsentryexists{##3}{%
+                \def\RDFReference@glossaryText{\glshyperlink[#3]{##3}}%
+              }{}%
+            }{}%
+          }{}%
+        }%
+        \RDFReference@scanSource{#1}%
+      }%
+    \fi
+  \fi
+  \RDFReference@glossaryText
+  \endgroup
+}
+
+% In no-index mode glossary entries must be defined in the preamble. The used
+% mode therefore reads the prior run's term IDs and defines only those entries;
+% terms first encountered in this run are recorded for the next pass.
+\def\RDFReference@prepareGlossary{%
+  \RDFReference@getDocumentLanguage
+  \xdef\RDFReference@glossaryLanguage{\RDFReference@documentLanguage}%
+  \InputIfFileExists{rdfCache/\jobname.rdfused.tex}{}{}%
+  \RDFReference@sources
+}
+
+\def\RDFReference@prepareUsedSource#1{%
+  \RDFReference@clearRecords
+  \begingroup
+    \begingroup
+      \RDFReference@resetStreamSelectors
+      \RDFReference@streamingtrue
+      \def\RDFReference@storedTermRecord##1##2##3##4{%
+        \ifcsname RDFReference@used@##3\endcsname
+          \RDFReference@markSelectedURI{##2}%
+          \g@addto@macro\RDFReference@termRecords{%
+            \RDFReference@storedTermRecord{##1}{##2}{##3}{##4}%
+          }%
+        \fi
+      }%
+      \def\RDFReference@storedHierarchyRecord##1##2##3##4##5{%
+        \RDFReference@ifSelectedURI{##2}{%
+          \g@addto@macro\RDFReference@hierarchyRecords{%
+            \RDFReference@storedHierarchyRecord{##1}{##2}{##3}{##4}{##5}%
+          }%
+        }%
+      }%
+      \def\RDFReference@storedRecord##1##2##3##4##5##6##7{%
+        \RDFReference@ifSelectedURI{##2}{%
+          \IfEq{##3}{name}{%
+            \g@addto@macro\RDFReference@records{%
+              \RDFReference@storedRecord{##1}{##2}{##3}{##4}{##5}{##6}{##7}%
+            }%
+          }{%
+            \IfEq{##3}{definition}{%
+              \g@addto@macro\RDFReference@records{%
+                \RDFReference@storedRecord{##1}{##2}{##3}{##4}{##5}{##6}{##7}%
+              }%
+            }{}%
+          }%
+        }%
+      }%
+      \RDFReference@inputCache{\csname RDFReference@cachePath@#1\endcsname}%
+      \RDFReference@streamingfalse
+    \endgroup
+    \def\RDFReference@storedTermRecord##1##2##3##4{%
+      \RDFReference@glossaryDefine{##1}{##2}{##3}{##4}%
+    }%
+    \RDFReference@termRecords
+  \endgroup
+  \RDFReference@clearRecords
+}
+
+\def\RDFReference@prepareSource#1{%
+  \ifcsname RDFReference@glossaryMode@#1\endcsname
+    \IfEq{\csname RDFReference@glossaryMode@#1\endcsname}{none}{}{%
+      \IfEq{\csname RDFReference@glossaryMode@#1\endcsname}{used}{%
+        \RDFReference@prepareUsedSource{#1}%
+      }{%
+        \RDFReference@clearRecords
+        \RDFReference@inputCache{\csname RDFReference@cachePath@#1\endcsname}%
+        \begingroup
+          \def\RDFReference@storedTermRecord##1##2##3##4{%
+            \RDFReference@glossaryDefine{##1}{##2}{##3}{##4}%
+            \g@addto@macro\RDFReference@glossaryFullEntries{%
+              \RDFReference@glossaryEntry{##1}{##2}{##3}{##4}%
+            }%
+          }%
+          \RDFReference@termRecords
+        \endgroup
+        \RDFReference@clearRecords
+      }%
+    }%
+  \fi
+}
+\AtEndPreamble{\RDFReference@prepareGlossary}
+
+\AtBeginDocument{%
+  \immediate\write18{%
+    texlua "$(kpsewhich --format=tex RDFTools.lua)" init-index
+    --output "rdfCache/\jobname.rdfused.new"%
+  }%
+  \global\RDFReference@usedGlossaryFileOpentrue
+  \global\RDFReference@glossaryReadytrue
+  \RDFReference@glossaryFull
+  \RDFReference@glossaryPending
+  \global\let\RDFReference@glossaryPending\@empty
+}
+
+\AtEndDocument{%
+  \ifRDFReference@usedGlossaryFileOpen
+    \immediate\write18{%
+      texlua "$(kpsewhich --format=tex RDFTools.lua)" finalize-used
+      --input "rdfCache/\jobname.rdfused.new"
+      --output "rdfCache/\jobname.rdfused.tex"%
+    }%
+    \global\RDFReference@usedGlossaryFileOpenfalse
+  \fi
+  \ifRDFReference@glossaryNeedsRerun
+    \PackageWarningNoLine{RDFTools}{RDF glossary entries have changed; rerun LaTeX to prepare their links and glossary output}%
+  \fi
+}
+\makeatother

@@ -1,0 +1,67 @@
+\documentclass[11pt,letterpaper]{article}
+% Author: Robert Warren
+
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[utf8]{inputenc}
+  \usepackage[T1]{fontenc}
+  \usepackage{lmodern}
+\fi
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\usepackage{RDFTools}
+
+\title{RDF Listing Import Example}
+\author{Robert Warren}
+\date{\today}
+
+\begin{document}
+
+\pagenumbering{roman}
+\listOfRDFfragments
+
+\clearpage
+\pagenumbering{arabic}
+\maketitle
+
+\section{Imported knowledge graph}
+
+The listing below is numbered, captioned, and cross-referenced like other
+document objects. It detects the Turtle serialization from the file extension
+and renders the source as a line-numbered listing. See RDF Listing~\ref{rdf:library}
+for the linked-data example.
+
+\begin{rdfFragment}[
+  source={doc/latex/RDFTools/examples/knowledge-graph.ttl},
+  title={Library knowledge graph},
+  show-source
+]
+\caption[Library knowledge graph]{A small linked-data example imported from a Turtle file.}
+\label{rdf:library}
+\end{rdfFragment}
+
+\section{Direct RDF listing}
+
+When the \texttt{source} option is omitted, the environment captures its body
+verbatim. The \texttt{label}, \texttt{caption}, and \texttt{format} options keep
+metadata outside the RDF body:
+
+\begin{rdfFragment}[
+  title={Inline Turtle example},
+  format={Turtle},
+  caption={A direct RDF listing},
+  label={rdf:inline}
+]
+@prefix ex: <https://example.org/ns#> .
+ex:item ex:label "literal with #, %, _, and {braces}" .
+\end{rdfFragment}
+
+The direct listing is numbered and can be referenced as RDF Listing~\ref{rdf:inline}.
+
+\section{Compatibility command}
+
+The original command remains available for simple imports:
+
+\importRDFfragment{doc/latex/RDFTools/examples/knowledge-graph.ttl}
+
+\end{document}

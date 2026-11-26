@@ -1,0 +1,94 @@
+\documentclass[11pt,letterpaper]{article}
+% Author: Robert Warren
+
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[utf8]{inputenc}
+  \usepackage[T1]{fontenc}
+  \usepackage{lmodern}
+\fi
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\usepackage{RDFTools}
+
+\useRDF[indexTerms]{catalog}{doc/latex/RDFTools/examples/reference.ttl}
+\useRDF{xml}{doc/latex/RDFTools/examples/reference.rdf}
+\useRDF{n3}{doc/latex/RDFTools/examples/reference.n3}
+\useRDF{quads}{doc/latex/RDFTools/examples/reference.nq}
+
+\title{RDFTools RDF Reference Example}
+\author{Robert Warren}
+\date{\today}
+
+\begin{document}
+
+\pagenumbering{roman}
+\makeRDFIndex
+
+\clearpage
+\pagenumbering{arabic}
+\maketitle
+
+\section{Localized term labels}
+
+The default label is \RDFTermName{catalog}{Book}. The Canadian French label
+is \RDFTermName{catalog}{Book}[fr-CA]. A two-argument language and region form
+is also supported: \RDFTermName{catalog}{Book}[fr][CA].
+
+The full resource URI is available as a hyperlink:
+\RDFTermURI{catalog}{Book}.
+
+\section{Definitions and fallback}
+
+The English definition is:
+
+\begin{quote}
+\RDFTermDefinition{catalog}{Book}
+\end{quote}
+
+The requested Canadian French definition is:
+
+\begin{quote}
+\RDFTermDefinition{catalog}{Book}[fr-CA]
+\end{quote}
+
+The `Author` term demonstrates the \texttt{foaf:name} and
+\texttt{rdfs:comment} fallbacks:
+
+\begin{quote}
+\RDFTermName{catalog}{Author}: \RDFTermDefinition{catalog}{Author}
+\end{quote}
+
+The untagged fallback is:
+
+\begin{quote}
+\RDFTermName{catalog}{FallbackConcept}: \RDFTermDefinition{catalog}{FallbackConcept}
+\end{quote}
+
+An unknown term produces the documented warning and the value
+\texttt{Undefined}: \RDFTermName{catalog}{MissingTerm}.
+
+\section{All supported serializations}
+
+The same commands work with sources registered from other serializers:
+
+\begin{itemize}
+  \item RDF/XML: \RDFTermName{xml}{XmlConcept};
+  \item N3: \RDFTermName{n3}{N3Concept};
+  \item N-Quads: \RDFTermName{quads}{QuadConcept}.
+\end{itemize}
+
+\section{Source metadata}
+
+The ontology metadata commands use the ontology instance before falling back
+to collection or dataset instances:
+
+\begin{itemize}
+  \item title: \RDFTitle{catalog};
+  \item Canadian French title: \RDFTitle{catalog}[fr-CA];
+  \item source name: \RDFName{catalog};
+  \item Canadian French source name: \RDFName{catalog}[fr][CA];
+  \item version: \RDFVersion{catalog}.
+\end{itemize}
+
+\end{document}

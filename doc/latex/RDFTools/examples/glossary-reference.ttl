@@ -1,0 +1,36 @@
+@prefix ex: <https://example.org/glossary-demo/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+
+ex:Resource
+    skos:prefLabel "resource"@en, "ressource"@fr ;
+    skos:definition "An identifiable entity."@en, "Une entite identifiable."@fr .
+ex:Document
+    rdfs:subClassOf ex:Resource ;
+    skos:prefLabel "document"@en, "document"@fr ;
+    skos:definition "A resource that records information."@en,
+        "Une ressource qui contient des informations."@fr .
+ex:Report
+    rdfs:subClassOf ex:Document ;
+    skos:prefLabel "report"@en, "rapport"@fr ;
+    skos:definition "A document that presents findings."@en,
+        "Un document qui presente des resultats."@fr .
+ex:Unused
+    skos:prefLabel "unused example"@en, "exemple inutilise"@fr ;
+    skos:definition "Included only when glossary=full is selected."@en,
+        "Inclus uniquement avec glossary=full."@fr .
+
+ex:owns
+    rdfs:subPropertyOf ex:controls ;
+    skos:prefLabel "owns"@en, "possede"@fr ;
+    skos:definition "Relates an owner to a resource."@en,
+        "Relie un proprietaire a une ressource."@fr .
+ex:controls
+    rdfs:subPropertyOf ex:relates ;
+    skos:prefLabel "controls"@en, "controle"@fr ;
+    skos:definition "Relates a controller to a resource."@en,
+        "Relie un controleur a une ressource."@fr .
+ex:relates
+    skos:prefLabel "relates"@en, "relie"@fr ;
+    skos:definition "Expresses a relation between resources."@en,
+        "Exprime une relation entre ressources."@fr .

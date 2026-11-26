@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rdf:RDF
+    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+    xmlns:skos="http://www.w3.org/2004/02/skos/core#"
+    xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+    xmlns:ex="https://example.org/reference/">
+  <rdf:Description rdf:about="https://example.org/reference/XmlConcept">
+    <skos:prefLabel xml:lang="en">XML concept</skos:prefLabel>
+    <skos:definition xml:lang="en">A concept loaded from RDF/XML.</skos:definition>
+  </rdf:Description>
+</rdf:RDF>

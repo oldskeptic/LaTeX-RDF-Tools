@@ -1,0 +1,2 @@
+<https://example.org/reference/QuadConcept> <http://www.w3.org/2004/02/skos/core#prefLabel> "Quad concept"@en <https://example.org/graph/catalog> .
+<https://example.org/reference/QuadConcept> <http://www.w3.org/2004/02/skos/core#definition> "A concept loaded from N-Quads."@en <https://example.org/graph/catalog> .

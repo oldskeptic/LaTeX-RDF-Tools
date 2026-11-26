@@ -1,0 +1,35 @@
+\documentclass[11pt,letterpaper]{article}
+% Author: Robert Warren
+
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[utf8]{inputenc}
+  \usepackage[T1]{fontenc}
+  \usepackage{lmodern}
+\fi
+\usepackage[margin=1in]{geometry}
+\usepackage{csquotes}
+\usepackage[
+  backend=biber,
+  style=authoryear
+]{biblatex}
+\addbibresource{references.bib}
+\usepackage{RDFTools}
+
+\useRDF{bibo}{doc/latex/RDFTools/examples/bibo-reference.ttl}
+
+\title{Dynamic BIBO Citation Example}
+\author{Robert Warren}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+The RDF-described article is cited dynamically here: \citeBibo{bibo}{paper}.
+The same generated entry can be cited again without creating a duplicate:
+\citeBibo{bibo}{ex:paper}.
+
+\printbibliography
+
+\end{document}

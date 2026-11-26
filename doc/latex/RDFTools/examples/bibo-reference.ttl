@@ -1,0 +1,26 @@
+@prefix ex: <https://example.org/bibo/> .
+@prefix bibo: <http://purl.org/ontology/bibo/> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+
+ex:paper a bibo:AcademicArticle ;
+    dcterms:title "A {Curious} Paper & More" ;
+    bibo:authorList ( ex:ada ex:grace ) ;
+    bibo:editor ex:editor ;
+    dcterms:issued "2024-05-12"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    dcterms:isPartOf ex:journal ;
+    bibo:volume "7" ;
+    bibo:issue "2" ;
+    bibo:pageStart "1" ;
+    bibo:pageEnd "12" ;
+    bibo:doi "10.1234/test_1" ;
+    bibo:uri <https://example.org/paper?id=1#abstract> .
+
+ex:ada foaf:givenName "Ada" ;
+    foaf:familyName "Lovelace" .
+
+ex:grace foaf:name "Grace Hopper" .
+
+ex:editor foaf:name "Editor Example" .
+
+ex:journal dcterms:title "Journal of Linked Examples" .

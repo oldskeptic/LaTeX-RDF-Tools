@@ -1,0 +1,73 @@
+\documentclass[11pt,letterpaper]{article}
+% Author: Robert Warren
+
+\usepackage[T1]{fontenc}
+\usepackage[english,french]{babel}
+\usepackage{w3c-recommendation}
+
+\WThreeCSetup{
+  title={Untitled language profile},
+  status={Working Draft}
+}
+
+\WThreeCLanguageSetup{english}{
+  title={RDF 1.2 Concepts and Abstract Data Model},
+  subtitle={English edition},
+  status={Working Draft},
+  date={11 September 2026},
+  language-code={en},
+  version={https://example.org/rdf12/en/},
+  editors={English Editor (Example Organization)},
+  feedback={\href{https://example.org/rdf12/en/issues}{English issue tracker}},
+  organization={Example Standards Working Group},
+  documentnumber={EXAMPLE-EN-2026},
+  abstract-label={Abstract},
+  status-label={Status of This Document},
+  toc-label={Table of Contents},
+  language-links-label={Other language versions}
+}
+
+\WThreeCLanguageSetup{french}{
+  title={Concepts et modèle de données abstrait RDF 1.2},
+  subtitle={Édition française},
+  status={Brouillon de travail},
+  date={11 septembre 2026},
+  language-code={fr},
+  version={https://example.org/rdf12/fr/},
+  editors={Éditeur français (Organisation Exemple)},
+  feedback={\href{https://example.org/rdf12/fr/issues}{Suivi des problèmes en français}},
+  organization={Groupe de travail sur les normes Exemple},
+  documentnumber={EXEMPLE-FR-2026},
+  abstract-label={Résumé},
+  status-label={État de ce document},
+  toc-label={Table des matières},
+  language-links-label={Autres versions linguistiques}
+}
+
+% These links are emitted in the HTML masthead and omitted from PDF output.
+\WThreeCLanguageLink{English}{w3c-babel-example-en.html}
+\WThreeCLanguageLink{Français}{w3c-babel-example-fr.html}
+
+% The active Babel language selects the matching W3C profile automatically.
+\selectlanguage{french}
+
+\begin{document}
+\WThreeCStart
+\maketitle
+\WThreeCContents
+
+\WThreeCAbstract{%
+  Ce document montre comment produire une édition française à partir de la
+  même source LaTeX que l'édition anglaise.
+}
+
+\WThreeCStatus{%
+  Cette section décrit l'état de publication de cette édition du document.
+}
+
+\section{Introduction}
+
+Le profil français est sélectionné à partir de la langue active de Babel.
+
+\WThreeCEnd
+\end{document}

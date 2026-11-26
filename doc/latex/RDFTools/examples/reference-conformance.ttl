@@ -1,0 +1,51 @@
+@base <https://example.org/conformance/> .
+@prefix c: <https://example.org/conformance/> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+c:Priority a c:Concept ;
+    skos:prefLabel "SKOS preferred"@en ;
+    foaf:name "FOAF fallback"@en ;
+    rdfs:label "RDFS fallback"@en ;
+    skos:definition "SKOS definition"@en ;
+    rdfs:comment "RDFS definition fallback"@en .
+
+c:Localized a c:Concept ;
+    skos:prefLabel "Localized English"@en ;
+    skos:prefLabel "Localized French"@fr ;
+    skos:prefLabel "Localized Canadian"@fr-CA ;
+    skos:prefLabel "Localized untagged" .
+
+c:Alias a c:Concept ;
+    skos:prefLabel "Alias label"@en .
+
+c:Escaped a c:Concept ;
+    skos:prefLabel "Caf\u00e9 & tea"@en .
+
+c:Child a c:Concept ;
+    skos:prefLabel "Child"@en ;
+    rdfs:subClassOf c:Middle, c:Other .
+
+c:Middle a c:Concept ;
+    skos:prefLabel "Middle"@en ;
+    rdfs:subClassOf c:Base .
+
+c:Base a c:Concept ;
+    skos:prefLabel "Base"@en .
+
+c:Other a c:Concept ;
+    skos:prefLabel "Other"@en .
+
+c:TwoParents a c:Concept ;
+    rdfs:subClassOf c:Base, c:Other .
+
+c:hasPart rdfs:label "has part"@en ;
+    rdfs:subPropertyOf c:hasRelation, c:hasLink .
+
+c:hasRelation rdfs:label "has relation"@en ;
+    rdfs:subPropertyOf c:hasEntity .
+
+c:hasLink rdfs:label "has link"@en .
+
+c:hasEntity rdfs:label "has entity"@en .

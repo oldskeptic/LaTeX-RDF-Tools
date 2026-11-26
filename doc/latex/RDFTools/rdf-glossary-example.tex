@@ -1,0 +1,24 @@
+\documentclass{article}
+% Author: Robert Warren
+\usepackage[english]{babel}
+\usepackage{RDFTools}
+\usepackage[nonumberlist]{glossaries}
+\makenoidxglossaries
+% Change "used" to "full" to include the unreferenced term as well.
+\useRDF[glossary=used]{vocab}{doc/latex/RDFTools/examples/glossary-reference.ttl}
+
+\begin{document}
+\section*{RDFTools glossary example}
+% Compact and two-argument references can be mixed in the same document.
+A \RDFTermName{vocab:Report} is defined as:
+\RDFTermDefinition{vocab}{Report}
+
+Its immediate superclass is \RDFListSuper{vocab}{Report}.
+Its superclass hierarchy is \RDFListSuperTransitive{vocab:Report}.
+
+The resource identifier is \RDFTermURI{vocab:Report}.
+
+The ownership relation is \RDFTermName{vocab}{owns}.
+
+\printnoidxglossary[title={RDF Terms}]
+\end{document}

@@ -1,0 +1,572 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{w3c-recommendation}[2026/09/11 W3C recommendation document layout]
+% Author: Robert Warren
+
+\RequirePackage{xkeyval}
+\RequirePackage{geometry}
+\RequirePackage{graphicx}
+\RequirePackage{fancyhdr}
+\RequirePackage{hyperref}
+\RequirePackage{url}
+\RequirePackage{xcolor}
+
+\makeatletter
+
+\definecolor{w3cblue}{RGB}{0,90,156}
+\definecolor{w3cdarkblue}{RGB}{0,58,102}
+\definecolor{w3cmuted}{RGB}{84,100,112}
+\definecolor{w3clight}{RGB}{244,246,247}
+\definecolor{w3cborder}{RGB}{210,218,224}
+
+\geometry{
+  top=24mm,
+  bottom=24mm,
+  left=28mm,
+  right=28mm,
+  headheight=14pt,
+  headsep=8mm
+}
+
+\newif\ifWThreeCHTML
+\@ifundefined{HCode}{\WThreeCHTMLfalse}{\WThreeCHTMLtrue}
+
+\def\WThreeC@title{Untitled Recommendation}
+\def\WThreeC@subtitle{}
+\def\WThreeC@status{Working Draft}
+\def\WThreeC@date{\today}
+\def\WThreeC@version{}
+\def\WThreeC@latest{}
+\def\WThreeC@editors{}
+\def\WThreeC@feedback{}
+\def\WThreeC@organization{}
+\def\WThreeC@documentnumber{}
+\def\WThreeC@copyright{}
+\def\WThreeC@logofile{}
+\def\WThreeC@shortname{}
+\def\WThreeC@languagecode{}
+\def\WThreeC@toclabel{Table of Contents}
+\def\WThreeC@abstractlabel{Abstract}
+\def\WThreeC@statuslabel{Status of This Document}
+\def\WThreeC@latestlabel{Latest published version}
+\def\WThreeC@detailslabel{More details about this document}
+\def\WThreeC@editorslabel{Editors}
+\def\WThreeC@feedbacklabel{Feedback}
+\def\WThreeC@organizationlabel{Organization}
+\def\WThreeC@documentnumberlabel{Document number}
+\def\WThreeC@languagelinkslabel{Other language versions}
+\def\WThreeC@languageLinks{}
+\newif\ifWThreeC@profile
+\WThreeC@profilefalse
+\def\WThreeC@profilelanguage{}
+
+\newcommand{\WThreeC@storefield}[2]{%
+  \ifWThreeC@profile
+    \expandafter\def\csname WThreeC@#1@\WThreeC@profilelanguage\endcsname{#2}%
+  \else
+    \expandafter\def\csname WThreeC@#1\endcsname{#2}%
+  \fi
+}
+
+\define@key{WThreeC}{title}{%
+  \WThreeC@storefield{title}{#1}%
+  \ifWThreeC@profile\else\title{#1}\fi
+}
+\define@key{WThreeC}{subtitle}{\WThreeC@storefield{subtitle}{#1}}
+\define@key{WThreeC}{status}{\WThreeC@storefield{status}{#1}}
+\define@key{WThreeC}{date}{\WThreeC@storefield{date}{#1}}
+\define@key{WThreeC}{version}{\WThreeC@storefield{version}{#1}}
+\define@key{WThreeC}{latest}{\WThreeC@storefield{latest}{#1}}
+\define@key{WThreeC}{editors}{\WThreeC@storefield{editors}{#1}}
+\define@key{WThreeC}{feedback}{\WThreeC@storefield{feedback}{#1}}
+\define@key{WThreeC}{organization}{\WThreeC@storefield{organization}{#1}}
+\define@key{WThreeC}{documentnumber}{\WThreeC@storefield{documentnumber}{#1}}
+\define@key{WThreeC}{copyright}{\WThreeC@storefield{copyright}{#1}}
+\define@key{WThreeC}{logo}{\WThreeC@storefield{logofile}{#1}}
+\define@key{WThreeC}{shortname}{\WThreeC@storefield{shortname}{#1}}
+\define@key{WThreeC}{language-code}{\WThreeC@storefield{languagecode}{#1}}
+\define@key{WThreeC}{toc-label}{\WThreeC@storefield{toclabel}{#1}}
+\define@key{WThreeC}{abstract-label}{\WThreeC@storefield{abstractlabel}{#1}}
+\define@key{WThreeC}{status-label}{\WThreeC@storefield{statuslabel}{#1}}
+\define@key{WThreeC}{latest-label}{\WThreeC@storefield{latestlabel}{#1}}
+\define@key{WThreeC}{details-label}{\WThreeC@storefield{detailslabel}{#1}}
+\define@key{WThreeC}{editors-label}{\WThreeC@storefield{editorslabel}{#1}}
+\define@key{WThreeC}{feedback-label}{\WThreeC@storefield{feedbacklabel}{#1}}
+\define@key{WThreeC}{organization-label}{\WThreeC@storefield{organizationlabel}{#1}}
+\define@key{WThreeC}{documentnumber-label}{\WThreeC@storefield{documentnumberlabel}{#1}}
+\define@key{WThreeC}{language-links-label}{\WThreeC@storefield{languagelinkslabel}{#1}}
+
+\newcommand{\WThreeCSetup}[1]{\setkeys{WThreeC}{#1}}
+
+\newcommand{\WThreeCLanguageSetup}[2]{%
+  \WThreeC@profiletrue
+  \def\WThreeC@profilelanguage{#1}%
+  \setkeys{WThreeC}{#2}%
+  \WThreeC@profilefalse
+}
+
+\newcommand{\WThreeC@copyfield}[1]{%
+  \ifcsname WThreeC@#1@\WThreeC@currentlanguage\endcsname
+    \expandafter\let\expandafter\WThreeC@selectedfield
+      \csname WThreeC@#1@\WThreeC@currentlanguage\endcsname
+    \expandafter\let\csname WThreeC@#1\endcsname
+      \WThreeC@selectedfield
+  \fi
+}
+
+\newcommand{\WThreeC@selectCurrentLanguage}{%
+  \@ifundefined{languagename}{%
+    \def\WThreeC@currentlanguage{}%
+  }{%
+    \edef\WThreeC@currentlanguage{\languagename}%
+  }%
+  \WThreeC@selectLanguageProfile
+}
+
+\newcommand{\WThreeCSelectLanguage}{%
+  \@ifnextchar[{\WThreeC@selectExplicitLanguage}{\WThreeC@selectCurrentLanguage}%
+}
+
+\newcommand{\WThreeC@selectExplicitLanguage}[1][]{%
+  \def\WThreeC@currentlanguage{#1}%
+  \WThreeC@selectLanguageProfile
+}
+
+\newcommand{\WThreeC@selectLanguageProfile}{%
+  \ifx\WThreeC@currentlanguage\@empty
+  \else
+    \@for\WThreeC@field:=%
+      {title,subtitle,status,date,version,latest,editors,feedback,organization,%
+       documentnumber,copyright,logofile,shortname,languagecode,toclabel,%
+       abstractlabel,statuslabel,latestlabel,detailslabel,editorslabel,%
+       feedbacklabel,organizationlabel,documentnumberlabel,languagelinkslabel}%
+      \do{\WThreeC@copyfield{\WThreeC@field}}%
+    \title{\WThreeC@title}%
+  \fi
+}
+
+\newcommand{\WThreeCLanguageLink}[2]{%
+  \g@addto@macro\WThreeC@languageLinks{%
+    \href{#2}{#1}\quad
+  }%
+}
+
+\newcommand{\WThreeC@html}[1]{%
+  \ifWThreeCHTML
+    \HCode{#1}%
+  \fi
+}
+
+\newcommand{\WThreeC@emitcss}{%
+  \WThreeC@html{%
+    <style type="text/css">
+    body {
+      margin: 0;
+      max-width: none;
+      padding: 0;
+      color: rgb(30, 38, 44);
+      background: white;
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.55;
+    }
+    .w3c-shell {
+      display: grid;
+      grid-template-columns: minmax(15rem, 22rem) minmax(0, 1fr);
+      min-height: 100vh;
+    }
+    .w3c-sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      box-sizing: border-box;
+      padding: 1.1rem 1.4rem 2rem 2.2rem;
+      background: rgb(246, 248, 249);
+      border-right: 1px solid rgb(220, 226, 230);
+    }
+    .w3c-sidebar-title {
+      margin: 0 0 1.2rem;
+      color: rgb(116, 137, 151);
+      font-size: .85rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .w3c-sidebar .tableofcontents {
+      font-size: .92rem;
+    }
+    .w3c-sidebar .tableofcontents ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .w3c-sidebar .tableofcontents ul ul {
+      padding-left: 1rem;
+    }
+    .w3c-sidebar .tableofcontents li {
+      margin: .25rem 0;
+    }
+    .w3c-sidebar a {
+      color: rgb(25, 35, 42);
+      text-decoration: none;
+    }
+    .w3c-sidebar a:hover,
+    .w3c-sidebar a:focus {
+      color: rgb(0, 90, 156);
+      text-decoration: underline;
+    }
+    .w3c-main {
+      box-sizing: border-box;
+      min-width: 0;
+      justify-self: stretch;
+      padding: 2rem 4rem 5rem;
+    }
+    .w3c-title-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 13rem;
+      gap: 2rem;
+      align-items: start;
+    }
+    .w3c-title-grid > .minipage {
+      width: auto;
+    }
+    .w3c-title-grid h1 {
+      margin: 0;
+      color: rgb(0, 90, 156);
+      font-size: 2.35rem;
+      line-height: 1.1;
+    }
+    .w3c-language-links {
+      margin-top: .8rem;
+      font-size: .9rem;
+    }
+    .w3c-language-links a {
+      margin-right: .8rem;
+      white-space: nowrap;
+    }
+    .w3c-subtitle {
+      color: rgb(0, 90, 156);
+      font-size: 1.1rem;
+    }
+    .w3c-logo {
+      color: rgb(0, 90, 156);
+      font-size: 2.6rem;
+      font-weight: 700;
+      line-height: 1;
+      text-align: center;
+    }
+    .w3c-logo img {
+      max-width: 13rem;
+      max-height: 6rem;
+    }
+    .w3c-meta {
+      margin: 1.8rem 0 1.2rem;
+    }
+    .w3c-meta dt {
+      float: left;
+      clear: left;
+      width: 10rem;
+      font-weight: 700;
+    }
+    .w3c-meta dd {
+      margin-left: 10.5rem;
+      margin-bottom: .55rem;
+    }
+    .w3c-abstract,
+    .w3c-status {
+      margin-top: 2rem;
+    }
+    .w3c-abstract h2,
+    .w3c-status h2,
+    .w3c-main h2,
+    .w3c-main h3,
+    .w3c-main h4 {
+      color: rgb(0, 90, 156);
+    }
+    .w3c-main h2 {
+      margin-top: 2.4rem;
+      border-bottom: 1px solid rgb(210, 218, 224);
+      padding-bottom: .25rem;
+      font-size: 1.45rem;
+    }
+    .w3c-main h3 {
+      font-size: 1.2rem;
+    }
+    .w3c-main a {
+      color: rgb(0, 90, 156);
+    }
+    .w3c-status-ribbon {
+      position: fixed;
+      z-index: 10;
+      top: 9rem;
+      left: 0;
+      padding: .45rem .35rem;
+      color: white;
+      background: rgb(0, 90, 156);
+      font-size: .8rem;
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+    }
+    .w3c-details {
+      margin: 1.2rem 0;
+    }
+    .w3c-details summary {
+      cursor: pointer;
+      font-weight: 700;
+    }
+    .w3c-footer {
+      margin-top: 3rem;
+      border-top: 1px solid rgb(210, 218, 224);
+      padding-top: .8rem;
+      color: rgb(84, 100, 112);
+      font-size: .85rem;
+    }
+    @media (max-width: 900px) {
+      .w3c-shell {
+        display: block;
+      }
+      .w3c-sidebar {
+        position: static;
+        height: auto;
+        max-height: 22rem;
+      }
+      .w3c-main {
+        padding: 1.5rem 1.25rem 3rem;
+      }
+      .w3c-title-grid {
+        display: block;
+      }
+      .w3c-logo {
+        margin-top: 1.2rem;
+        text-align: left;
+      }
+      .w3c-meta dt {
+        float: none;
+        width: auto;
+      }
+      .w3c-meta dd {
+        margin-left: 0;
+      }
+    }
+    </style>
+  }%
+}
+
+\AtBeginDocument{%
+  \ifWThreeCHTML
+    \Configure{@HEAD}{\WThreeC@emitcss}%
+  \fi
+}
+
+\newcommand{\WThreeC@logo}{%
+  \ifx\WThreeC@logofile\@empty
+    \textcolor{w3cblue}{\sffamily\bfseries\fontsize{34}{36}\selectfont W3C}%
+  \else
+    \IfFileExists{\WThreeC@logofile}{%
+      \includegraphics[width=.9\linewidth]{\WThreeC@logofile}%
+    }{%
+      \textcolor{w3cblue}{\sffamily\bfseries\fontsize{28}{30}\selectfont
+        \WThreeC@logofile}%
+    }%
+  \fi
+}
+
+\newcommand{\WThreeC@metafield}[2]{%
+  \ifx#2\@empty
+  \else
+    \textbf{#1}\par
+    #2\par
+  \fi
+}
+
+\newcommand{\WThreeC@htmlmetafield}[2]{%
+  \ifx#2\@empty
+  \else
+    \HCode{<dt>}#1\HCode{</dt><dd>}#2\HCode{</dd>}%
+  \fi
+}
+
+\newcommand{\WThreeC@url}[1]{%
+  \begingroup
+    \edef\WThreeC@expandedurl{\endgroup
+      \noexpand\url{#1}}%
+  \WThreeC@expandedurl
+}
+
+\newcommand{\WThreeCTitlePage}{%
+  \thispagestyle{plain}%
+  \WThreeC@html{<header class="w3c-title-grid">}%
+  \begin{minipage}[t]{.72\textwidth}%
+    \raggedright
+    \WThreeC@html{<h1 class="w3c-title">}%
+    {\Huge\bfseries\color{w3cblue}\WThreeC@title\par}%
+    \WThreeC@html{</h1>}%
+    \ifx\WThreeC@subtitle\@empty\else
+      \vspace{.35em}{\large\color{w3cblue}\WThreeC@subtitle\par}%
+    \fi
+    \vspace{.4em}%
+    {\large\color{w3cblue}\WThreeC@status\space\WThreeC@date\par}%
+    \ifx\WThreeC@version\@empty\else
+      \small\WThreeC@url{\WThreeC@version}\par
+    \fi
+    \ifx\WThreeC@latest\@empty\else
+      \small \WThreeC@latestlabel: \WThreeC@url{\WThreeC@latest}\par
+    \fi
+    \ifWThreeCHTML
+      \ifx\WThreeC@languageLinks\@empty
+      \else
+        \WThreeC@html{<nav class="w3c-language-links" aria-label="}%
+        \WThreeC@languagelinkslabel
+        \WThreeC@html{">}%
+        \WThreeC@languageLinks
+        \WThreeC@html{</nav>}%
+      \fi
+    \fi
+  \end{minipage}%
+  \hfill
+  \begin{minipage}[t]{.22\textwidth}%
+    \begin{center}\WThreeC@logo\end{center}%
+  \end{minipage}%
+  \WThreeC@html{</header>}%
+  \par\bigskip
+  \WThreeC@html{<dl class="w3c-meta">}%
+  \ifWThreeCHTML
+    \WThreeC@htmlmetafield{\WThreeC@editorslabel}{\WThreeC@editors}%
+    \WThreeC@htmlmetafield{\WThreeC@feedbacklabel}{\WThreeC@feedback}%
+    \WThreeC@htmlmetafield{\WThreeC@organizationlabel}{\WThreeC@organization}%
+    \WThreeC@htmlmetafield{\WThreeC@documentnumberlabel}{\WThreeC@documentnumber}%
+  \else
+    \WThreeC@metafield{\WThreeC@editorslabel}{\WThreeC@editors}%
+    \WThreeC@metafield{\WThreeC@feedbacklabel}{\WThreeC@feedback}%
+    \WThreeC@metafield{\WThreeC@organizationlabel}{\WThreeC@organization}%
+    \WThreeC@metafield{\WThreeC@documentnumberlabel}{\WThreeC@documentnumber}%
+  \fi
+  \WThreeC@html{</dl>}%
+  \ifx\WThreeC@copyright\@empty\else
+    \par\small\WThreeC@copyright\par
+  \fi
+  \medskip\hrule\bigskip
+}
+
+\renewcommand{\maketitle}{\WThreeCTitlePage}
+
+\newcommand{\WThreeCAbstract}[1]{%
+  \ifWThreeCHTML
+    \addcontentsline{toc}{section}{\WThreeC@abstractlabel}%
+    \HCode{<section class="w3c-abstract"><h2 id="abstract">}%
+    \WThreeC@abstractlabel
+    \HCode{</h2>}%
+    #1%
+    \HCode{</section>}%
+  \else
+    \section*{\WThreeC@abstractlabel}%
+    \addcontentsline{toc}{section}{\WThreeC@abstractlabel}%
+    #1%
+  \fi
+}
+
+\newcommand{\WThreeCStatus}[1]{%
+  \ifWThreeCHTML
+    \addcontentsline{toc}{section}{\WThreeC@statuslabel}%
+    \HCode{<section class="w3c-status"><h2 id="status-of-this-document">}%
+    \WThreeC@statuslabel
+    \HCode{</h2>}%
+    #1%
+    \HCode{</section>}%
+  \else
+    \section*{\WThreeC@statuslabel}%
+    \addcontentsline{toc}{section}{\WThreeC@statuslabel}%
+    #1%
+  \fi
+}
+
+\newcommand{\WThreeCMoreDetails}[1]{%
+  \ifWThreeCHTML
+    \HCode{<details class="w3c-details"><summary>}%
+    \WThreeC@detailslabel
+    \HCode{</summary>}%
+    #1%
+    \HCode{</details>}%
+  \else
+    \par\noindent\textbf{\WThreeC@detailslabel}\par
+    \begin{quote}#1\end{quote}%
+  \fi
+}
+
+\newcommand{\WThreeCStart}{%
+  \ifWThreeCHTML
+    \IgnorePar
+    \EndP
+    \HCode{<div class="w3c-status-ribbon">}%
+    \WThreeC@status
+    \ifx\WThreeC@languagecode\@empty
+      \HCode{</div><div class="w3c-shell">}%
+    \else
+      \edef\WThreeC@openShell{%
+        \noexpand\HCode{</div><div class="w3c-shell" lang='\WThreeC@languagecode'>}%
+      }%
+      \WThreeC@openShell
+    \fi
+    \HCode{<aside class="w3c-sidebar">}%
+    \HCode{<div class="w3c-sidebar-title">}%
+    \WThreeC@toclabel
+    \HCode{</div>}%
+    \IgnorePar
+    \tableofcontents
+    \IgnorePar
+    \HCode{</aside><main class="w3c-main">}%
+  \fi
+}
+
+\newcommand{\WThreeCContents}{%
+  \ifWThreeCHTML
+  \else
+    \tableofcontents
+    \clearpage
+  \fi
+}
+
+\newcommand{\WThreeCEnd}{%
+  \ifWThreeCHTML
+    \IgnorePar
+    \EndP
+    \HCode{<footer class="w3c-footer">}%
+    \ifx\WThreeC@copyright\@empty\else\WThreeC@copyright\fi
+    \HCode{</footer></main></div>}%
+  \fi
+}
+
+\renewcommand{\section}{%
+  \@startsection{section}{1}{\z@}%
+    {-3.0ex\@plus -1ex\@minus -.2ex}%
+    {1.5ex\@plus .2ex}%
+    {\normalfont\Large\bfseries\color{w3cblue}}%
+}
+\renewcommand{\subsection}{%
+  \@startsection{subsection}{2}{\z@}%
+    {-2.5ex\@plus -1ex\@minus -.2ex}%
+    {1.1ex\@plus .2ex}%
+    {\normalfont\large\bfseries\color{w3cblue}}%
+}
+\renewcommand{\subsubsection}{%
+  \@startsection{subsubsection}{3}{\z@}%
+    {-2.0ex\@plus -1ex\@minus -.2ex}%
+    {.8ex\@plus .2ex}%
+    {\normalfont\normalsize\bfseries\color{w3cdarkblue}}%
+}
+
+\AtBeginDocument{%
+  \WThreeCSelectLanguage
+  \hypersetup{
+    colorlinks=true,
+    linkcolor=w3cblue,
+    citecolor=w3cblue,
+    urlcolor=w3cblue
+  }%
+  \pagestyle{fancy}%
+  \fancyhf{}%
+  \fancyfoot[C]{\color{w3cmuted}\thepage}%
+  \renewcommand{\headrulewidth}{0pt}%
+  \renewcommand{\footrulewidth}{0pt}%
+}
+
+\makeatother

@@ -1,0 +1,72 @@
+\documentclass[11pt,letterpaper]{article}
+% Author: Robert Warren
+
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[utf8]{inputenc}
+  \usepackage[T1]{fontenc}
+  \usepackage{lmodern}
+\fi
+\usepackage{w3c-recommendation}
+
+\WThreeCSetup{
+  title={RDF 1.2 Concepts and Abstract Data Model},
+  subtitle={W3C Recommendation-style LaTeX document},
+  status={Working Draft},
+  date={11 September 2026},
+  version={https://www.w3.org/TR/rdf12-concepts/},
+  latest={https://www.w3.org/TR/rdf12-concepts/},
+  editors={Example Editor (Example Organization)},
+  feedback={\href{https://github.com/w3c/}{GitHub issue tracker}},
+  organization={World Wide Web Consortium},
+  documentnumber={W3C Example 2026/09},
+  copyright={Copyright © 2026 World Wide Web Consortium.}
+}
+
+\begin{document}
+\WThreeCStart
+\maketitle
+\WThreeCMoreDetails{%
+  This example demonstrates the document metadata and navigation structure
+  used by W3C technical recommendations. The HTML build places the table of
+  contents in a fixed left rail, while the PDF build keeps the same content in
+  ordinary front matter.
+}
+\WThreeCContents
+
+\WThreeCAbstract{%
+  This example presents a reusable LaTeX layout for standards documents. It
+  provides a title and metadata masthead, an abstract, a status section,
+  readable section typography, and a generated table of contents.
+}
+
+\WThreeCStatus{%
+  This section describes the status of this document at the time of its
+  publication. It is included as normal document text so authors can replace
+  it with the applicable W3C publication language.
+}
+
+\section{Introduction}
+
+This section demonstrates the main readable content column. Links use the same
+blue treatment as the W3C recommendation layout.
+
+\subsection{Document structure}
+
+The package keeps the document source semantic: use ordinary \LaTeX{}
+\verb|\section|, \verb|\subsection|, figures, tables, and bibliographies.
+
+\section{Conformance}
+
+The PDF version uses a conventional table of contents after the title block.
+The make4ht version moves that same table of contents into the left navigation
+rail and adds responsive CSS for narrower screens.
+
+\subsection{Implementation notes}
+
+The style does not require external images. The default masthead uses a text
+W3C mark; an image path can be supplied with the \verb|logo| setup option when
+an organization logo is available.
+
+\WThreeCEnd
+\end{document}

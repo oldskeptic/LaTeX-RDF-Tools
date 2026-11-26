@@ -1,0 +1,5 @@
+@prefix ex: <https://example.org/reference/> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+
+ex:N3Concept skos:prefLabel "N3 concept"@en ;
+    skos:definition "A concept loaded from N3."@en .
