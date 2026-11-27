@@ -1,6 +1,7 @@
 # LaTeX-RDF-Tools
 
 **Author:** Robert Warren
+**Version:** 1.0
 
 LaTeX-RDF-Tools distributes the RDFTools and w3c-recommendation LaTeX packages. It includes their user documentation, examples, and a complete reference manual.
 
